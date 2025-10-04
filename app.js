@@ -116,6 +116,11 @@ app.get('/dashboard', verifyToken, (req, res) => {
   });
 });
 
+// 背默英文生字頁面
+app.get('/dictation', verifyToken, (req, res) => {
+  res.render('dictation');
+});
+
 // 登出
 app.get('/logout', (req, res) => {
   res.clearCookie('token');
