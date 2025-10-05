@@ -39,6 +39,36 @@ pool.query(`CREATE TABLE IF NOT EXISTS users (
   console.log('Users table ready');
 });
 
+// 創建生字庫表
+pool.query(`CREATE TABLE IF NOT EXISTS wordlists (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  name VARCHAR(255) NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id)
+)`, (err) => {
+  if (err) {
+    console.error('Wordlists Table Creation Error:', err.message);
+    throw err;
+  }
+  console.log('Wordlists table ready');
+});
+
+// 創建生字表
+pool.query(`CREATE TABLE IF NOT EXISTS words (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  wordlist_id INT NOT NULL,
+  english VARCHAR(255) NOT NULL,
+  chinese VARCHAR(255) NOT NULL,
+  FOREIGN KEY (wordlist_id) REFERENCES wordlists(id)
+)`, (err) => {
+  if (err) {
+    console.error('Words Table Creation Error:', err.message);
+    throw err;
+  }
+  console.log('Words table ready');
+});
+
 // 根路徑重定向
 app.get('/', (req, res) => res.redirect('/login'));
 
@@ -118,7 +148,49 @@ app.get('/dashboard', verifyToken, (req, res) => {
 
 // 背默英文生字頁面
 app.get('/dictation', verifyToken, (req, res) => {
-  res.render('dictation');
+  pool.query('SELECT id, name FROM wordlists WHERE user_id = ?', [req.user.id], (err, results) => {
+    if (err) {
+      console.error('Wordlists Query Error:', err.message);
+      return res.render('dictation', { wordlists: [] });
+    }
+    res.render('dictation', { wordlists: results });
+  });
+});
+
+// API：儲存生字庫
+app.post('/dictation/save', verifyToken, (req, res) => {
+  const { wordlistName, words } = req.body;
+  if (!wordlistName || !words || !Array.isArray(words)) {
+    return res.status(400).json({ error: '請提供生字庫名稱和有效的生字列表' });
+  }
+
+  pool.query('INSERT INTO wordlists (user_id, name) VALUES (?, ?)', [req.user.id, wordlistName], (err, result) => {
+    if (err) {
+      console.error('Wordlist Insert Error:', err.message);
+      return res.status(500).json({ error: '儲存生字庫失敗' });
+    }
+    const wordlistId = result.insertId;
+    const wordValues = words.map(word => [wordlistId, word.english, word.chinese]);
+    pool.query('INSERT INTO words (wordlist_id, english, chinese) VALUES ?', [wordValues], (err) => {
+      if (err) {
+        console.error('Words Insert Error:', err.message);
+        return res.status(500).json({ error: '儲存生字失敗' });
+      }
+      res.json({ success: true });
+    });
+  });
+});
+
+// API：取得指定生字庫的生字
+app.get('/dictation/words/:wordlistId', verifyToken, (req, res) => {
+  const wordlistId = req.params.wordlistId;
+  pool.query('SELECT english, chinese FROM words WHERE wordlist_id = ?', [wordlistId], (err, results) => {
+    if (err) {
+      console.error('Words Query Error:', err.message);
+      return res.status(500).json({ error: '取得生字失敗' });
+    }
+    res.json(results);
+  });
 });
 
 // 登出

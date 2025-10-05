@@ -11,6 +11,25 @@
   <div class="container bg-white bg-opacity-10 border border-light border-opacity-20 rounded p-4 shadow">
     <h1 class="text-center text-white mb-4">背默英文生字</h1>
     
+    <!-- 選擇或創建生字庫 -->
+    <div id="wordlistSection" class="mb-4">
+      <h2 class="text-center text-white mb-4">生字庫管理</h2>
+      <div class="mb-3">
+        <label for="wordlistSelect" class="form-label text-white">選擇現有生字庫</label>
+        <select id="wordlistSelect" class="form-select mb-2">
+          <option value="">-- 選擇生字庫 --</option>
+          <% wordlists.forEach(wordlist => { %>
+            <option value="<%= wordlist.id %>"><%= wordlist.name %></option>
+          <% }) %>
+        </select>
+        <button onclick="loadWordlist()" class="btn btn-primary w-100">載入生字庫</button>
+      </div>
+      <div class="mb-3">
+        <label for="wordlistName" class="form-label text-white">或輸入新生字庫名稱</label>
+        <input type="text" id="wordlistName" class="form-control mb-2" placeholder="輸入生字庫名稱">
+      </div>
+    </div>
+
     <!-- 輸入生字及中文解釋區域 -->
     <div id="inputSection" class="mb-4">
       <p class="text-white text-opacity-75 mb-2">每行輸入一個生字，格式：英文,中文</p>
@@ -55,20 +74,71 @@
     let results = [];
 
     function saveWords() {
+      const wordlistName = document.getElementById('wordlistName').value.trim();
       const input = document.getElementById('wordInput').value.trim();
+      if (!wordlistName) {
+        alert('請輸入生字庫名稱！');
+        return;
+      }
       const lines = input.split('\n').map(line => line.trim()).filter(line => line);
       words = lines.map(line => {
         const [english, chinese] = line.split(',').map(item => item.trim());
         return { english, chinese };
       }).filter(word => word.english && word.chinese);
       
-      if (words.length > 0) {
-        document.getElementById('inputSection').classList.add('d-none');
-        document.getElementById('wordListSection').classList.remove('d-none');
-        displayWordList();
-      } else {
+      if (words.length === 0) {
         alert('請至少輸入一個有效的生字及中文解釋（格式：英文,中文）！');
+        return;
       }
+
+      // 使用 AJAX 儲存生字庫
+      fetch('/dictation/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ wordlistName, words })
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          document.getElementById('inputSection').classList.add('d-none');
+          document.getElementById('wordlistSection').classList.add('d-none');
+          document.getElementById('wordListSection').classList.remove('d-none');
+          displayWordList();
+        } else {
+          alert(data.error || '儲存生字庫失敗，請稍後重試');
+        }
+      })
+      .catch(err => {
+        console.error('Save Error:', err);
+        alert('儲存生字庫失敗，請稍後重試');
+      });
+    }
+
+    function loadWordlist() {
+      const wordlistId = document.getElementById('wordlistSelect').value;
+      if (!wordlistId) {
+        alert('請選擇一個生字庫！');
+        return;
+      }
+
+      // 使用 AJAX 取得生字庫中的生字
+      fetch(`/dictation/words/${wordlistId}`)
+      .then(response => response.json())
+      .then(data => {
+        words = data;
+        if (words.length > 0) {
+          document.getElementById('wordlistSection').classList.add('d-none');
+          document.getElementById('inputSection').classList.add('d-none');
+          document.getElementById('wordListSection').classList.remove('d-none');
+          displayWordList();
+        } else {
+          alert('該生字庫為空！');
+        }
+      })
+      .catch(err => {
+        console.error('Load Error:', err);
+        alert('載入生字庫失敗，請稍後重試');
+      });
     }
 
     function displayWordList() {
@@ -165,11 +235,14 @@
     }
 
     function resetQuiz() {
+      document.getElementById('wordlistSection').classList.remove('d-none');
       document.getElementById('inputSection').classList.remove('d-none');
       document.getElementById('wordListSection').classList.add('d-none');
       document.getElementById('quizSection').classList.add('d-none');
       document.getElementById('resultSection').classList.add('d-none');
       document.getElementById('wordInput').value = '';
+      document.getElementById('wordlistName').value = '';
+      document.getElementById('wordlistSelect').value = '';
       words = [];
       usedIndices = [];
       currentWordIndex = -1;
