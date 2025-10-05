@@ -46,6 +46,15 @@
     <!-- 生字列表區域 -->
     <div id="wordListSection" class="mb-4 d-none">
       <h2 class="text-center text-white mb-4">生字列表</h2>
+      <!-- 新增生字輸入區域 -->
+      <div class="mb-3">
+        <label class="form-label text-white">新增生字</label>
+        <div class="input-group">
+          <input type="text" id="newWordEnglish" class="form-control" placeholder="英文單字">
+          <input type="text" id="newWordChinese" class="form-control" placeholder="中文解釋">
+          <button onclick="addNewWord()" class="btn btn-success">新增</button>
+        </div>
+      </div>
       <ul id="wordList" class="list-group mb-4"></ul>
       <button onclick="saveEditedWords()" class="btn btn-primary w-100 mb-2">儲存編輯</button>
       <button onclick="startQuiz()" class="btn btn-primary w-100">開始背默</button>
@@ -194,6 +203,42 @@
       });
     }
 
+    function addNewWord() {
+      if (!currentWordlistId) {
+        alert('請先載入或儲存一個生字庫！');
+        return;
+      }
+      const english = document.getElementById('newWordEnglish').value.trim();
+      const chinese = document.getElementById('newWordChinese').value.trim();
+      if (!english || !chinese) {
+        alert('請輸入英文單字和中文解釋！');
+        return;
+      }
+
+      // 使用 AJAX 新增單個生字
+      fetch(`/dictation/word/${currentWordlistId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ english, chinese })
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          words.push({ id: data.wordId, english, chinese });
+          document.getElementById('newWordEnglish').value = '';
+          document.getElementById('newWordChinese').value = '';
+          displayWordList();
+          alert('生字已新增！');
+        } else {
+          alert(data.error || '新增生字失敗，請稍後重試');
+        }
+      })
+      .catch(err => {
+        console.error('Add Word Error:', err);
+        alert('新增生字失敗，請稍後重試');
+      });
+    }
+
     function displayWordList() {
       const wordList = document.getElementById('wordList');
       wordList.innerHTML = '';
@@ -201,7 +246,8 @@
         const li = document.createElement('li');
         li.className = 'list-group-item bg-dark bg-opacity-25 text-white d-flex align-items-center';
         li.innerHTML = `
-          <span class="text-info cursor-pointer flex-grow-1" onclick="speakWord('${word.english}')">${word.english}</span> - 
+          <input type="text" class="form-control mx-2" style="width: 150px;" value="${word.english}" data-index="${index}" data-field="english">
+          <span>-</span>
           <input type="text" class="form-control mx-2" style="width: 150px;" value="${word.chinese}" data-index="${index}" data-field="chinese">
           <button class="btn btn-sm btn-warning mx-1" onclick="editWord(${index})">編輯</button>
           <button class="btn btn-sm btn-danger" onclick="deleteWord(${index})">刪除</button>
@@ -211,8 +257,10 @@
     }
 
     function editWord(index) {
+      const englishInput = document.querySelector(`input[data-index="${index}"][data-field="english"]`);
       const chineseInput = document.querySelector(`input[data-index="${index}"][data-field="chinese"]`);
-      words[index].chinese = chineseInput.value;
+      words[index].english = englishInput.value.trim();
+      words[index].chinese = chineseInput.value.trim();
     }
 
     function deleteWord(index) {
@@ -341,6 +389,8 @@
       document.getElementById('wordlistName').value = '';
       document.getElementById('wordlistSelect').value = '';
       document.getElementById('deleteWordlistBtn').disabled = true;
+      document.getElementById('newWordEnglish').value = '';
+      document.getElementById('newWordChinese').value = '';
       words = [];
       usedIndices = [];
       currentWordIndex = -1;

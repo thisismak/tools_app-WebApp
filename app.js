@@ -241,4 +241,31 @@ app.put('/dictation/words/:wordlistId', verifyToken, (req, res) => {
   });
 });
 
+// API：新增單個生字
+app.post('/dictation/word/:wordlistId', verifyToken, (req, res) => {
+  const wordlistId = req.params.wordlistId;
+  const { english, chinese } = req.body;
+  if (!english || !chinese) {
+    return res.status(400).json({ error: '請提供英文和中文解釋' });
+  }
+
+  pool.query('SELECT * FROM wordlists WHERE id = ? AND user_id = ?', [wordlistId, req.user.id], (err, results) => {
+    if (err || results.length === 0) {
+      console.error('Wordlist Check Error:', err?.message || '無效的生字庫');
+      return res.status(403).json({ error: '無效的生字庫或無權限' });
+    }
+
+    pool.query('INSERT INTO words (wordlist_id, english, chinese) VALUES (?, ?, ?)', 
+      [wordlistId, english, chinese], 
+      (err, result) => {
+        if (err) {
+          console.error('Word Insert Error:', err.message);
+          return res.status(500).json({ error: '新增生字失敗' });
+        }
+        res.json({ success: true, wordId: result.insertId });
+      }
+    );
+  });
+});
+
 app.listen(process.env.PORT, () => console.log(`Server running on port ${process.env.PORT}`));
