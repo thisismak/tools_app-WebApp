@@ -16,12 +16,15 @@
       <h2 class="text-center text-white mb-4">生字庫管理</h2>
       <div class="mb-3">
         <label for="wordlistSelect" class="form-label text-white">選擇現有生字庫</label>
-        <select id="wordlistSelect" class="form-select mb-2">
-          <option value="">-- 選擇生字庫 --</option>
-          <% wordlists.forEach(wordlist => { %>
-            <option value="<%= wordlist.id %>"><%= wordlist.name %></option>
-          <% }) %>
-        </select>
+        <div class="input-group">
+          <select id="wordlistSelect" class="form-select mb-2">
+            <option value="">-- 選擇生字庫 --</option>
+            <% wordlists.forEach(wordlist => { %>
+              <option value="<%= wordlist.id %>"><%= wordlist.name %></option>
+            <% }) %>
+          </select>
+          <button onclick="deleteWordlist()" class="btn btn-danger mb-2" disabled id="deleteWordlistBtn">刪除</button>
+        </div>
         <button onclick="loadWordlist()" class="btn btn-primary w-100">載入生字庫</button>
       </div>
       <div class="mb-3">
@@ -44,6 +47,7 @@
     <div id="wordListSection" class="mb-4 d-none">
       <h2 class="text-center text-white mb-4">生字列表</h2>
       <ul id="wordList" class="list-group mb-4"></ul>
+      <button onclick="saveEditedWords()" class="btn btn-primary w-100 mb-2">儲存編輯</button>
       <button onclick="startQuiz()" class="btn btn-primary w-100">開始背默</button>
       <button onclick="resetQuiz()" class="btn btn-secondary w-100 mt-2">重新開始</button>
     </div>
@@ -72,6 +76,13 @@
     let usedIndices = [];
     let currentWordIndex = -1;
     let results = [];
+    let currentWordlistId = null;
+
+    // 當選擇生字庫時啟用刪除按鈕
+    document.getElementById('wordlistSelect').addEventListener('change', function() {
+      const deleteBtn = document.getElementById('deleteWordlistBtn');
+      deleteBtn.disabled = this.value === '';
+    });
 
     function saveWords() {
       const wordlistName = document.getElementById('wordlistName').value.trim();
@@ -100,10 +111,17 @@
       .then(response => response.json())
       .then(data => {
         if (data.success) {
+          currentWordlistId = data.wordlistId;
           document.getElementById('inputSection').classList.add('d-none');
           document.getElementById('wordlistSection').classList.add('d-none');
           document.getElementById('wordListSection').classList.remove('d-none');
           displayWordList();
+          // 更新生字庫選單
+          const select = document.getElementById('wordlistSelect');
+          const option = document.createElement('option');
+          option.value = data.wordlistId;
+          option.textContent = wordlistName;
+          select.appendChild(option);
         } else {
           alert(data.error || '儲存生字庫失敗，請稍後重試');
         }
@@ -126,6 +144,7 @@
       .then(response => response.json())
       .then(data => {
         words = data;
+        currentWordlistId = wordlistId;
         if (words.length > 0) {
           document.getElementById('wordlistSection').classList.add('d-none');
           document.getElementById('inputSection').classList.add('d-none');
@@ -141,14 +160,92 @@
       });
     }
 
+    function deleteWordlist() {
+      const wordlistId = document.getElementById('wordlistSelect').value;
+      if (!wordlistId) {
+        alert('請選擇一個生字庫！');
+        return;
+      }
+      if (!confirm('確定要刪除此生字庫嗎？此操作無法恢復！')) {
+        return;
+      }
+
+      // 使用 AJAX 刪除生字庫
+      fetch(`/dictation/wordlist/${wordlistId}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' }
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          const select = document.getElementById('wordlistSelect');
+          const option = select.querySelector(`option[value="${wordlistId}"]`);
+          option.remove();
+          select.value = '';
+          document.getElementById('deleteWordlistBtn').disabled = true;
+          alert('生字庫已刪除！');
+        } else {
+          alert(data.error || '刪除生字庫失敗，請稍後重試');
+        }
+      })
+      .catch(err => {
+        console.error('Delete Error:', err);
+        alert('刪除生字庫失敗，請稍後重試');
+      });
+    }
+
     function displayWordList() {
       const wordList = document.getElementById('wordList');
       wordList.innerHTML = '';
-      words.forEach(word => {
+      words.forEach((word, index) => {
         const li = document.createElement('li');
-        li.className = 'list-group-item bg-dark bg-opacity-25 text-white';
-        li.innerHTML = `<span class="text-info cursor-pointer" onclick="speakWord('${word.english}')">${word.english}</span> - ${word.chinese}`;
+        li.className = 'list-group-item bg-dark bg-opacity-25 text-white d-flex align-items-center';
+        li.innerHTML = `
+          <span class="text-info cursor-pointer flex-grow-1" onclick="speakWord('${word.english}')">${word.english}</span> - 
+          <input type="text" class="form-control mx-2" style="width: 150px;" value="${word.chinese}" data-index="${index}" data-field="chinese">
+          <button class="btn btn-sm btn-warning mx-1" onclick="editWord(${index})">編輯</button>
+          <button class="btn btn-sm btn-danger" onclick="deleteWord(${index})">刪除</button>
+        `;
         wordList.appendChild(li);
+      });
+    }
+
+    function editWord(index) {
+      const chineseInput = document.querySelector(`input[data-index="${index}"][data-field="chinese"]`);
+      words[index].chinese = chineseInput.value;
+    }
+
+    function deleteWord(index) {
+      if (confirm('確定要刪除此生字嗎？')) {
+        words.splice(index, 1);
+        displayWordList();
+      }
+    }
+
+    function saveEditedWords() {
+      if (!currentWordlistId) {
+        alert('請先載入或儲存一個生字庫！');
+        return;
+      }
+
+      // 使用 AJAX 更新生字庫
+      fetch(`/dictation/words/${currentWordlistId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ words })
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          alert('生字已更新！');
+          displayWordList();
+        } else {
+          alert(data.error || '更新生字失敗，請稍後重試');
+        }
+      })
+      .catch(err => {
+        console.error('Update Error:', err);
+        alert('更新生字失敗，請稍後重試');
       });
     }
 
@@ -243,10 +340,12 @@
       document.getElementById('wordInput').value = '';
       document.getElementById('wordlistName').value = '';
       document.getElementById('wordlistSelect').value = '';
+      document.getElementById('deleteWordlistBtn').disabled = true;
       words = [];
       usedIndices = [];
       currentWordIndex = -1;
       results = [];
+      currentWordlistId = null;
     }
   </script>
 </body>

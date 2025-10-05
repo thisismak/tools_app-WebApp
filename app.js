@@ -176,7 +176,7 @@ app.post('/dictation/save', verifyToken, (req, res) => {
         console.error('Words Insert Error:', err.message);
         return res.status(500).json({ error: '儲存生字失敗' });
       }
-      res.json({ success: true });
+      res.json({ success: true, wordlistId });
     });
   });
 });
@@ -184,7 +184,7 @@ app.post('/dictation/save', verifyToken, (req, res) => {
 // API：取得指定生字庫的生字
 app.get('/dictation/words/:wordlistId', verifyToken, (req, res) => {
   const wordlistId = req.params.wordlistId;
-  pool.query('SELECT english, chinese FROM words WHERE wordlist_id = ?', [wordlistId], (err, results) => {
+  pool.query('SELECT id, english, chinese FROM words WHERE wordlist_id = ?', [wordlistId], (err, results) => {
     if (err) {
       console.error('Words Query Error:', err.message);
       return res.status(500).json({ error: '取得生字失敗' });
@@ -193,10 +193,52 @@ app.get('/dictation/words/:wordlistId', verifyToken, (req, res) => {
   });
 });
 
-// 登出
-app.get('/logout', (req, res) => {
-  res.clearCookie('token');
-  res.redirect('/login');
+// API：刪除生字庫
+app.delete('/dictation/wordlist/:wordlistId', verifyToken, (req, res) => {
+  const wordlistId = req.params.wordlistId;
+  pool.query('DELETE FROM words WHERE wordlist_id = ?', [wordlistId], (err) => {
+    if (err) {
+      console.error('Words Delete Error:', err.message);
+      return res.status(500).json({ error: '刪除生字失敗' });
+    }
+    pool.query('DELETE FROM wordlists WHERE id = ? AND user_id = ?', [wordlistId, req.user.id], (err) => {
+      if (err) {
+        console.error('Wordlist Delete Error:', err.message);
+        return res.status(500).json({ error: '刪除生字庫失敗' });
+      }
+      res.json({ success: true });
+    });
+  });
+});
+
+// API：更新生字庫中的生字
+app.put('/dictation/words/:wordlistId', verifyToken, (req, res) => {
+  const wordlistId = req.params.wordlistId;
+  const words = req.body.words;
+  if (!words || !Array.isArray(words)) {
+    return res.status(400).json({ error: '請提供有效的生字列表' });
+  }
+
+  // 首先刪除該生字庫的所有現有生字
+  pool.query('DELETE FROM words WHERE wordlist_id = ?', [wordlistId], (err) => {
+    if (err) {
+      console.error('Words Delete Error:', err.message);
+      return res.status(500).json({ error: '更新生字失敗' });
+    }
+    // 如果有新的生字，插入新數據
+    if (words.length > 0) {
+      const wordValues = words.map(word => [wordlistId, word.english, word.chinese]);
+      pool.query('INSERT INTO words (wordlist_id, english, chinese) VALUES ?', [wordValues], (err) => {
+        if (err) {
+          console.error('Words Insert Error:', err.message);
+          return res.status(500).json({ error: '更新生字失敗' });
+        }
+        res.json({ success: true });
+      });
+    } else {
+      res.json({ success: true });
+    }
+  });
 });
 
 app.listen(process.env.PORT, () => console.log(`Server running on port ${process.env.PORT}`));
