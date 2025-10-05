@@ -110,9 +110,9 @@ app.get('/dashboard', verifyToken, (req, res) => {
   pool.query('SELECT * FROM users WHERE id = ?', [req.user.id], (err, results) => {
     if (err) {
       console.error('Dashboard Query Error:', err.message);
-      return res.render('dashboard', { userId: '未知' });
+      return res.render('dashboard', { username: '未知' });
     }
-    res.render('dashboard', { userId: results[0].id });
+    res.render('dashboard', { username: results[0].username });
   });
 });
 
