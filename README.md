@@ -57,6 +57,31 @@ server {
     }
 }
 ```
+## 安裝SSL (Let’s encrypt)
+a. 安裝 Certbot 和 Nginx 插件
+sudo dnf install certbot python3-certbot-nginx -y
+
+b. 驗證 Certbot 安裝
+certbot --version
+
+c. 申請 Let's Encrypt SSL 證書
+sudo certbot --nginx -d tools.mysandshome.com
+
+d. 檢查Nginx是否已自動導入SSL內容
+cat /etc/nginx/conf.d/tools_app.conf
+
+e. 檢查配置
+sudo nginx -t
+
+f. 如果沒有錯誤，重啟 Nginx 應用更改
+sudo systemctl restart nginx
+
+g. 設置自動續期
+sudo certbot renew --dry-run
+
+h. 可以手動添加 Cron 任務
+sudo crontab -e
+0 0,12 * * * certbot renew --quiet
 ## 測試並重載
 sudo nginx -t
 sudo systemctl reload nginx
