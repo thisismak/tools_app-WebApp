@@ -87,3 +87,20 @@ sudo nginx -t
 sudo systemctl reload nginx
 ## 打開網站測試
 http://tools.mysandshome.com/login
+
+# 故障處理需知
+## 重啟網站服務方法
+pm2 restart tools_app-webapp
+systemctl restart nginx
+
+## 常用日誌
+tail -n 50 /var/log/nginx/access.log
+tail -n 50 /var/log/nginx/error.log
+pm2 log tools_app-webapp
+
+## 檢查SQL內容
+mysql -u app_user -psam1_sql_password -e "SHOW DATABASES;"
+mysql -u app_user -psam1_sql_password -e "SHOW TABLES FROM internal_website;"
+mysql -u app_user -psam1_sql_password -e "USE internal_website; SHOW CREATE TABLE users;"
+mysql -u app_user -psam1_sql_password -e "USE internal_website; DESC users;"
+mysql -u app_user -psam1_sql_password -e "USE internal_website; SELECT * FROM users;"
