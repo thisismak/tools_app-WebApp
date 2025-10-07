@@ -88,6 +88,14 @@ sudo systemctl reload nginx
 ## 打開網站測試
 http://tools.mysandshome.com/login
 
+# 系統安全設置
+## firewalld設置
+- 啟用並運行 firewalld
+systemctl enable --now firewalld
+- 開放 HTTP 和 HTTPS 服務
+firewall-cmd --permanent --add-service=http
+firewall-cmd --permanent --add-service=https
+
 # 故障處理需知
 ## 重啟網站服務方法
 pm2 restart tools_app-webapp
