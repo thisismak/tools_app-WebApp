@@ -95,6 +95,53 @@ systemctl enable --now firewalld
 - 開放 HTTP 和 HTTPS 服務
 firewall-cmd --permanent --add-service=http
 firewall-cmd --permanent --add-service=https
+- 開放自定義 SSH 端口
+firewall-cmd --permanent --add-rich-rule='rule family="ipv4" port port="33888" protocol="tcp" accept'
+- 限制 MySQL 端口 (3306)
+firewall-cmd --permanent --add-rich-rule='rule family="ipv4" source address="127.0.0.1" port port="3306" protocol="tcp" accept'
+firewall-cmd --permanent --add-rich-rule='rule family="ipv4" port port="3306" protocol="tcp" reject'
+- 應用防火牆規則
+firewall-cmd --reload
+- 檢查防火牆配置
+firewall-cmd --list-all
+## fail2ban(ssh/http)設置
+- 安裝 Fail2Ban
+dnf install -y fail2ban
+- 啟動 Fail2Ban 服務
+systemctl start fail2ban
+- 設置 Fail2Ban 開機自動啟動
+systemctl enable fail2ban
+- 創建 Fail2Ban 自定義配置目錄
+mkdir -p /etc/fail2ban/jail.d
+- 配置 SSH 防護
+vi /etc/fail2ban/jail.d/sshd.local
+```
+[sshd]
+enabled = true
+port = 33888
+maxretry = 3
+bantime = 3600
+findtime = 600
+logpath = /var/log/secure
+backend = auto
+```
+- 檢查ssh記錄是否存在
+ls /var/log/secure
+- 配置 Nginx HTTP 認證防護
+vi /etc/fail2ban/jail.d/nginx-http-auth.local
+```
+[nginx-http-auth]
+enabled = true
+port = http,https
+logpath = /var/log/nginx/error.log
+maxretry = 5
+bantime = 3600
+findtime = 600
+backend = auto
+```
+- 重啟 Fail2Ban 服務
+systemctl restart fail2ban
+
 
 # 故障處理需知
 ## 重啟網站服務方法
