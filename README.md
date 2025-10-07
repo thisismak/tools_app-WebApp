@@ -141,7 +141,37 @@ backend = auto
 ```
 - 重啟 Fail2Ban 服務
 systemctl restart fail2ban
-
+## Netdata設置
+- 使用 dnf 安裝 wget
+sudo dnf install -y wget
+- 下載並執行最新腳本
+DISABLE_TELEMETRY=1 wget -O /tmp/netdata-kickstart.sh https://get.netdata.cloud/kickstart.sh && sh /tmp/netdata-kickstart.sh --release-channel stable
+- 確認服務狀態
+sudo systemctl status netdata
+- 啟動並設置開機啟動
+sudo systemctl start netdata
+sudo systemctl enable netdata
+- 添加防火牆規則
+sudo firewall-cmd --permanent --add-port=19999/tcp
+sudo firewall-cmd --reload
+- 檢查防火牆
+sudo firewall-cmd --list-all
+- 關閉SElinux
+setenforce 0 && getenforce && sed "s#SELINUX=enforcing#SELINUX=disabled#g" /etc/selinux/config -i 
+- 配置 Fail2Ban 保護 Netdata
+sudo vi /etc/fail2ban/jail.d/netdata.local
+```
+[netdata]
+enabled = true
+port = 19999
+logpath = /var/log/netdata/access.log
+maxretry = 5
+bantime = 3600
+findtime = 600
+backend = auto
+```
+- 重啟 Fail2Ban
+sudo systemctl restart fail2ban
 
 # 故障處理需知
 ## 重啟網站服務方法
