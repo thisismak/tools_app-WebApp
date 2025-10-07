@@ -172,6 +172,158 @@ backend = auto
 ```
 - 重啟 Fail2Ban
 sudo systemctl restart fail2ban
+- 能打開監控頁面
+IP:19999
+## 資源監控腳本
+- 安裝 sysstat（提供 iostat）和 bc
+sudo dnf install -y sysstat bc
+- 啟動 sysstat 服務（確保 iostat 數據可用）
+sudo systemctl enable --now sysstat
+- 將腳本保存到 /var/process
+sudo vi /var/process
+```
+#!/bin/bash
+
+# 腳本使用 bc 進行浮點數比較。需安裝
+# apt install bc -y
+# 用於監控 IO 使用率，屬於 sysstat 包。需安裝
+# apt install sysstat -y
+
+# TG 机器人 token
+TOKEN="5203692206:AAFG0RMH8VubUXQvIHrYm0CKM2uT8DlhSeQ"
+# 用户 ID 或频道、群 ID
+chat_ID="-4941586070"
+# API 接口
+URL="https://api.telegram.org/bot${TOKEN}/sendMessage"
+# 解析模式
+MODE="HTML"
+
+# 收集服務器資訊
+HOSTNAME=$(hostname)
+IP=$(ip addr show | grep -w inet | grep -v 127.0.0.1 | awk '{print $2}' | head -n 1)  # 獲取內網或外網 IP
+
+# 阈值（可根据需求调整）
+CPU_THRESHOLD=50
+MEM_THRESHOLD=80
+DISK_THRESHOLD=90
+IO_THRESHOLD=50
+
+# 監控超過阈值的計數器
+CPU_EXCEED_COUNT=0
+MEM_EXCEED_COUNT=0
+DISK_EXCEED_COUNT=0
+IO_EXCEED_COUNT=0
+CHECK_INTERVAL=60  # 每60秒檢查一次
+
+while true; do
+    # 收集當前系統資訊
+    TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
+    CPU_USAGE=$(top -bn1 | grep '%Cpu(s)' | awk '{printf "%.2f", $2}')
+    MEM_USAGE=$(free -m | awk '/Mem:/ {print $3/$2 * 100.0}')
+    DISK_USAGE=$(df -h / | awk 'NR==2 {print $5}' | sed 's/%//')
+    IO_USAGE=$(iostat -dx | grep sda | awk '{print $NF}')
+    TOP_PROCESSES=$(ps -eo pid,ppid,%cpu,%mem,cmd --sort=-%cpu,-%mem | head -n 6 | awk 'NR>1 {printf "%s (PID: %s, CPU: %s%%, MEM: %s%%)\n", $5, $1, $3, $4}')
+
+    # 檢查各項指標是否超過閾值
+    ALERT_MESSAGE=""
+    
+    # CPU 檢查
+    if (( $(echo "$CPU_USAGE > $CPU_THRESHOLD" | bc -l) )); then
+        ((CPU_EXCEED_COUNT++))
+        if [ $CPU_EXCEED_COUNT -ge 5 ]; then
+            ALERT_MESSAGE="${ALERT_MESSAGE}<b>CPU 使用率異常</b>: ${CPU_USAGE}% (超過 ${CPU_THRESHOLD}% 持續5分鐘)\n"
+        fi
+    else
+        CPU_EXCEED_COUNT=0
+    fi
+
+    # 記憶體檢查
+    if (( $(echo "$MEM_USAGE > $MEM_THRESHOLD" | bc -l) )); then
+        ((MEM_EXCEED_COUNT++))
+        if [ $MEM_EXCEED_COUNT -ge 5 ]; then
+            ALERT_MESSAGE="${ALERT_MESSAGE}<b>記憶體使用異常</b>: ${MEM_USAGE}% (超過 ${MEM_THRESHOLD}% 持續5分鐘)\n"
+        fi
+    else
+        MEM_EXCEED_COUNT=0
+    fi
+
+    # 磁碟檢查
+    if (( $(echo "$DISK_USAGE > $DISK_THRESHOLD" | bc -l) )); then
+        ((DISK_EXCEED_COUNT++))
+        if [ $DISK_EXCEED_COUNT -ge 5 ]; then
+            ALERT_MESSAGE="${ALERT_MESSAGE}<b>磁碟使用異常</b>: ${DISK_USAGE}% (超過 ${DISK_THRESHOLD}% 持續5分鐘)\n"
+        fi
+    else
+        DISK_EXCEED_COUNT=0
+    fi
+
+    # IO 檢查
+    if (( $(echo "$IO_USAGE > $IO_THRESHOLD" | bc -l) )); then
+        ((IO_EXCEED_COUNT++))
+        if [ $IO_EXCEED_COUNT -ge 5 ]; then
+            ALERT_MESSAGE="${ALERT_MESSAGE}<b>IO 使用異常</b>: ${IO_USAGE}% (超過 ${IO_THRESHOLD}% 持續5分鐘)\n"
+        fi
+    else
+        IO_EXCEED_COUNT=0
+    fi
+
+    # 如果有任何異常，發送通知
+    if [ -n "$ALERT_MESSAGE" ]; then
+        message_text="
+        <b>服務器監控通知</b>
+        <b>主機名</b>: ${HOSTNAME}
+        <b>IP</b>: ${IP}
+        <b>時間</b>: ${TIMESTAMP}
+        ${ALERT_MESSAGE}
+        <b>當前系統狀態</b>:
+        CPU 使用率: ${CPU_USAGE}%
+        記憶體使用: ${MEM_USAGE}%
+        磁碟使用: ${DISK_USAGE}%
+        IO使用: ${IO_USAGE}%
+        <b>佔用最高的5個程序</b>:
+        ${TOP_PROCESSES}
+        "
+
+        # 發送 Telegram 通知
+        curl -s -X POST "$URL" -d chat_id="${chat_ID}" -d parse_mode="${MODE}" -d text="${message_text}"
+
+        # 重置所有計數器
+        CPU_EXCEED_COUNT=0
+        MEM_EXCEED_COUNT=0
+        DISK_EXCEED_COUNT=0
+        IO_EXCEED_COUNT=0
+    fi
+
+    sleep $CHECK_INTERVAL
+done
+```
+- 設置執行權限：
+sudo chmod +x /var/process
+- 創建 systemd 服務文件
+sudo vi /etc/systemd/system/process-monitor.service
+```
+[Unit]
+Description=System Monitor with Telegram Notifications
+After=network.target sysstat.service
+
+[Service]
+ExecStart=/var/process
+Restart=always
+User=root
+WorkingDirectory=/var
+StandardOutput=append:/var/log/process-monitor.log
+StandardError=append:/var/log/process-monitor.log
+
+[Install]
+WantedBy=multi-user.target
+```
+- 啟用並啟動服務
+sudo systemctl daemon-reload
+sudo systemctl enable process-monitor.service
+sudo systemctl start process-monitor.service
+- [可選擇]壓力測試了解腳本運作
+stress-ng --vm 100 --vm-bytes 100% --timeout 600s --metrics-brief
+
 
 # 故障處理需知
 ## 重啟網站服務方法
