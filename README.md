@@ -341,3 +341,10 @@ mysql -u app_user -psam1_sql_password -e "SHOW TABLES FROM internal_website;"
 mysql -u app_user -psam1_sql_password -e "USE internal_website; SHOW CREATE TABLE users;"
 mysql -u app_user -psam1_sql_password -e "USE internal_website; DESC users;"
 mysql -u app_user -psam1_sql_password -e "USE internal_website; SELECT * FROM users;"
+
+## 導出所有網站內容
+- Exports the entire directory to the output file.
+Dir2file: Export Directory to File
+- Opens a QuickPick menu to select specific files for export.
+Dir2file: Select Files to Export
+PS: 先安裝Export Directory to File
