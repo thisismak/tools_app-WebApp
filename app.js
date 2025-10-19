@@ -69,6 +69,23 @@ pool.query(`CREATE TABLE IF NOT EXISTS words (
   console.log('Words table ready');
 });
 
+// 創建任務表
+pool.query(`CREATE TABLE IF NOT EXISTS tasks (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  description TEXT,
+  due_date DATE NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id)
+)`, (err) => {
+  if (err) {
+    console.error('Tasks Table Creation Error:', err.message);
+    throw err;
+  }
+  console.log('Tasks table ready');
+});
+
 // 根路徑渲染首頁
 app.get('/', (req, res) => res.render('index'));
 
@@ -269,6 +286,71 @@ app.post('/dictation/word/:wordlistId', verifyToken, (req, res) => {
         res.json({ success: true, wordId: result.insertId });
       }
     );
+  });
+});
+
+// 任務管理頁面
+app.get('/taskmanager', verifyToken, (req, res) => {
+  res.render('taskmanager');
+});
+
+// API：取得用戶的所有任務
+app.get('/taskmanager/tasks', verifyToken, (req, res) => {
+  pool.query('SELECT * FROM tasks WHERE user_id = ?', [req.user.id], (err, results) => {
+    if (err) {
+      console.error('Tasks Query Error:', err.message);
+      return res.status(500).json({ error: '取得任務失敗' });
+    }
+    res.json(results);
+  });
+});
+
+// API：新增任務
+app.post('/taskmanager/add', verifyToken, (req, res) => {
+  const { title, description, due_date } = req.body;
+  if (!title || !due_date) {
+    return res.status(400).json({ error: '請提供標題和到期日期' });
+  }
+  pool.query('INSERT INTO tasks (user_id, title, description, due_date) VALUES (?, ?, ?, ?)',
+    [req.user.id, title, description, due_date],
+    (err, result) => {
+      if (err) {
+        console.error('Task Insert Error:', err.message);
+        return res.status(500).json({ error: '新增任務失敗' });
+      }
+      res.json({ success: true, taskId: result.insertId });
+    }
+  );
+});
+
+// API：編輯任務
+app.put('/taskmanager/edit/:id', verifyToken, (req, res) => {
+  const taskId = req.params.id;
+  const { title, description, due_date } = req.body;
+  if (!title || !due_date) {
+    return res.status(400).json({ error: '請提供標題和到期日期' });
+  }
+  pool.query('UPDATE tasks SET title = ?, description = ?, due_date = ? WHERE id = ? AND user_id = ?',
+    [title, description, due_date, taskId, req.user.id],
+    (err) => {
+      if (err) {
+        console.error('Task Update Error:', err.message);
+        return res.status(500).json({ error: '編輯任務失敗' });
+      }
+      res.json({ success: true });
+    }
+  );
+});
+
+// API：刪除任務
+app.delete('/taskmanager/delete/:id', verifyToken, (req, res) => {
+  const taskId = req.params.id;
+  pool.query('DELETE FROM tasks WHERE id = ? AND user_id = ?', [taskId, req.user.id], (err) => {
+    if (err) {
+      console.error('Task Delete Error:', err.message);
+      return res.status(500).json({ error: '刪除任務失敗' });
+    }
+    res.json({ success: true });
   });
 });
 
