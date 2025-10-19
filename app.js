@@ -7,6 +7,9 @@ const bodyParser = require('body-parser');
 const cookieParser = require('cookie-parser');
 const app = express();
 
+// Set Node.js timezone to Hong Kong (UTC+8)
+process.env.TZ = 'Asia/Hong_Kong';
+
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 app.use(cookieParser());
@@ -22,7 +25,8 @@ const pool = mysql.createPool({
   database: process.env.DB_NAME,
   waitForConnections: true,
   connectionLimit: 10,
-  queueLimit: 0
+  queueLimit: 0,
+  timezone: '+08:00' // Set MySQL connection to UTC+8
 });
 
 // 創建用戶表
@@ -75,7 +79,7 @@ pool.query(`CREATE TABLE IF NOT EXISTS tasks (
   user_id INT NOT NULL,
   title VARCHAR(255) NOT NULL,
   description TEXT,
-  due_date DATE NOT NULL,
+  due_date DATETIME NOT NULL, -- Changed from DATE to DATETIME for hour/minute support
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id)
 )`, (err) => {

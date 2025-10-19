@@ -32,6 +32,10 @@
           <label for="dueDate" class="form-label">到期日期</label>
           <input type="date" id="dueDate" class="form-control" required>
         </div>
+        <div class="mb-3">
+          <label for="dueTime" class="form-label">到期時間</label>
+          <input type="time" id="dueTime" class="form-control" required>
+        </div>
         <button type="button" onclick="saveTask()" class="btn btn-primary">儲存任務</button>
         <button type="button" onclick="resetForm()" class="btn btn-secondary">重置</button>
       </form>
@@ -52,6 +56,24 @@
 
   <script>
     let tasks = [];
+
+    // 格式化日期時間
+    function formatDateTime(date, time) {
+      return `${date}T${time}:00`;
+    }
+
+    // 格式化顯示的日期時間
+    function formatDisplayDateTime(datetime) {
+      const dt = new Date(datetime);
+      return dt.toLocaleString('zh-TW', { 
+        year: 'numeric', 
+        month: '2-digit', 
+        day: '2-digit', 
+        hour: '2-digit', 
+        minute: '2-digit',
+        hour12: false 
+      });
+    }
 
     // 載入任務
     function loadTasks() {
@@ -74,7 +96,7 @@
         li.className = 'list-group-item d-flex justify-content-between align-items-center';
         li.innerHTML = `
           <div>
-            <strong>${task.title}</strong> - ${task.description || '無描述'} (到期: ${task.due_date})
+            <strong>${task.title}</strong> - ${task.description || '無描述'} (到期: ${formatDisplayDateTime(task.due_date)})
           </div>
           <div>
             <button class="btn btn-sm btn-warning mx-1" onclick="editTask(${task.id})">編輯</button>
@@ -90,11 +112,17 @@
       const calendarEl = document.getElementById('calendar');
       const calendar = new FullCalendar.Calendar(calendarEl, {
         initialView: 'dayGridMonth',
+        timeZone: 'Asia/Hong_Kong',
         events: tasks.map(task => ({
           title: task.title,
           start: task.due_date,
-          allDay: true
-        }))
+          allDay: false
+        })),
+        eventTimeFormat: {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false
+        }
       });
       calendar.render();
     }
@@ -105,19 +133,21 @@
       const title = document.getElementById('title').value.trim();
       const description = document.getElementById('description').value.trim();
       const dueDate = document.getElementById('dueDate').value;
+      const dueTime = document.getElementById('dueTime').value;
 
-      if (!title || !dueDate) {
-        alert('請填寫標題和到期日期！');
+      if (!title || !dueDate || !dueTime) {
+        alert('請填寫標題、到期日期和到期時間！');
         return;
       }
 
+      const dueDateTime = formatDateTime(dueDate, dueTime);
       const method = id ? 'PUT' : 'POST';
       const url = id ? `/taskmanager/edit/${id}` : '/taskmanager/add';
 
       fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, description, due_date: dueDate })
+        body: JSON.stringify({ title, description, due_date: dueDateTime })
       })
       .then(response => response.json())
       .then(data => {
@@ -138,7 +168,9 @@
         document.getElementById('taskId').value = task.id;
         document.getElementById('title').value = task.title;
         document.getElementById('description').value = task.description || '';
-        document.getElementById('dueDate').value = task.due_date;
+        const dueDateTime = new Date(task.due_date);
+        document.getElementById('dueDate').value = dueDateTime.toISOString().split('T')[0];
+        document.getElementById('dueTime').value = dueDateTime.toTimeString().slice(0, 5);
       }
     }
 
