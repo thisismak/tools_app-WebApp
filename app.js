@@ -13,7 +13,7 @@ app.use(cookieParser());
 app.use(express.static('public'));
 app.set('view engine', 'ejs');
 
-// 數據庫連接池（提升效能）
+// 數據庫連接池
 const pool = mysql.createPool({
   host: process.env.DB_HOST,
   port: process.env.DB_PORT || 3306,
@@ -69,8 +69,8 @@ pool.query(`CREATE TABLE IF NOT EXISTS words (
   console.log('Words table ready');
 });
 
-// 根路徑重定向
-app.get('/', (req, res) => res.redirect('/login'));
+// 根路徑渲染首頁
+app.get('/', (req, res) => res.render('index'));
 
 // 註冊路由
 app.get('/register', (req, res) => res.render('register', { error: null }));
@@ -121,7 +121,13 @@ app.post('/login', (req, res) => {
   });
 });
 
-// JWT中間件
+// 登出路由
+app.get('/logout', (req, res) => {
+  res.clearCookie('token');
+  res.redirect('/');
+});
+
+// JWT 中間件
 const verifyToken = (req, res, next) => {
   const token = req.cookies.token;
   if (!token) return res.redirect('/login');
@@ -219,13 +225,11 @@ app.put('/dictation/words/:wordlistId', verifyToken, (req, res) => {
     return res.status(400).json({ error: '請提供有效的生字列表' });
   }
 
-  // 首先刪除該生字庫的所有現有生字
   pool.query('DELETE FROM words WHERE wordlist_id = ?', [wordlistId], (err) => {
     if (err) {
       console.error('Words Delete Error:', err.message);
       return res.status(500).json({ error: '更新生字失敗' });
     }
-    // 如果有新的生字，插入新數據
     if (words.length > 0) {
       const wordValues = words.map(word => [wordlistId, word.english, word.chinese]);
       pool.query('INSERT INTO words (wordlist_id, english, chinese) VALUES ?', [wordValues], (err) => {
