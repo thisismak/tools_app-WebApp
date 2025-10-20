@@ -139,7 +139,30 @@ server {
     return 404; # managed by Certbot
 }
 ```
-
+## 添加手機推送通知功能
+a. 安裝 web-push 模組
+cd /opt/tools_app-webapp
+npm install web-push --save
+b. Install web-push Globally
+npm install -g web-push
+c. 導出高安全性的VAPID Keys
+web-push generate-vapid-keys
+Public Key:
+BCUBSpo6Y0Q8QUKduPAWXSwcvlElJbg5_PZDiXYJf1JC8sS3lCODMs_IiFDahD0LtlimMBqZj1G7lH61eVJMGeY
+Private Key:
+bwXEQHcZYH2FUQ2_NKtAxorzjh-l8Dkrrro79bpjRn4
+d. 修改.env文件內容
+```
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_USER=app_user
+DB_PASSWORD=sam1_sql_password
+DB_NAME=internal_website
+JWT_SECRET=your_jwt_secret_key
+PORT=3000
+VAPID_PUBLIC_KEY=BCUBSpo6Y0Q8QUKduPAWXSwcvlElJbg5_PZDiXYJf1JC8sS3lCODMs_IiFDahD0LtlimMBqZj1G7lH61eVJMGeY
+VAPID_PRIVATE_KEY=bwXEQHcZYH2FUQ2_NKtAxorzjh-l8Dkrrro79bpjRn4
+```
 ## 測試並重載
 sudo nginx -t
 sudo systemctl reload nginx

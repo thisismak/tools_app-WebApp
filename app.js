@@ -5,17 +5,26 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const bodyParser = require('body-parser');
 const cookieParser = require('cookie-parser');
-const moment = require('moment-timezone'); // 加入 moment-timezone
-const app = express();
+const moment = require('moment-timezone');
+const webpush = require('web-push');
 
 // 設定 Node.js 時區為香港（UTC+8）
 process.env.TZ = 'Asia/Hong_Kong';
+
+const app = express();
 
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 app.use(cookieParser());
 app.use(express.static('public'));
 app.set('view engine', 'ejs');
+
+// 配置 VAPID
+webpush.setVapidDetails(
+  'mailto:your-email@example.com', // 替換為您的聯繫郵箱
+  process.env.VAPID_PUBLIC_KEY,
+  process.env.VAPID_PRIVATE_KEY
+);
 
 // 資料庫連線池
 const pool = mysql.createPool({
@@ -27,7 +36,7 @@ const pool = mysql.createPool({
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
-  timezone: '+08:00' // 設定 MySQL 連線為 UTC+8
+  timezone: '+08:00'
 });
 
 // 創建用戶表
@@ -38,7 +47,7 @@ pool.query(`CREATE TABLE IF NOT EXISTS users (
   password VARCHAR(255) NOT NULL
 )`, (err) => {
   if (err) {
-    console.error('Table Creation Error:', err.message);
+    console.error('Users Table Creation Error:', err.message);
     throw err;
   }
   console.log('Users table ready');
@@ -89,6 +98,21 @@ pool.query(`CREATE TABLE IF NOT EXISTS tasks (
     throw err;
   }
   console.log('Tasks table ready');
+});
+
+// 創建推送訂閱表
+pool.query(`CREATE TABLE IF NOT EXISTS push_subscriptions (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  subscription JSON NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id)
+)`, (err) => {
+  if (err) {
+    console.error('Push Subscriptions Table Creation Error:', err.message);
+    throw err;
+  }
+  console.log('Push Subscriptions table ready');
 });
 
 // 根路徑渲染首頁
@@ -191,7 +215,6 @@ app.post('/dictation/save', verifyToken, (req, res) => {
   if (!wordlistName || !words || !Array.isArray(words)) {
     return res.status(400).json({ error: '請提供生字庫名稱和有效的生字列表' });
   }
-
   pool.query('INSERT INTO wordlists (user_id, name) VALUES (?, ?)', [req.user.id, wordlistName], (err, result) => {
     if (err) {
       console.error('Wordlist Insert Error:', err.message);
@@ -246,7 +269,6 @@ app.put('/dictation/words/:wordlistId', verifyToken, (req, res) => {
   if (!words || !Array.isArray(words)) {
     return res.status(400).json({ error: '請提供有效的生字列表' });
   }
-
   pool.query('DELETE FROM words WHERE wordlist_id = ?', [wordlistId], (err) => {
     if (err) {
       console.error('Words Delete Error:', err.message);
@@ -274,13 +296,11 @@ app.post('/dictation/word/:wordlistId', verifyToken, (req, res) => {
   if (!english || !chinese) {
     return res.status(400).json({ error: '請提供英文和中文解釋' });
   }
-
   pool.query('SELECT * FROM wordlists WHERE id = ? AND user_id = ?', [wordlistId, req.user.id], (err, results) => {
     if (err || results.length === 0) {
       console.error('Wordlist Check Error:', err?.message || '無效的生字庫');
       return res.status(403).json({ error: '無效的生字庫或無權限' });
     }
-
     pool.query('INSERT INTO words (wordlist_id, english, chinese) VALUES (?, ?, ?)', 
       [wordlistId, english, chinese], 
       (err, result) => {
@@ -296,8 +316,77 @@ app.post('/dictation/word/:wordlistId', verifyToken, (req, res) => {
 
 // 任務管理頁面
 app.get('/taskmanager', verifyToken, (req, res) => {
-  res.render('taskmanager');
+  res.render('taskmanager', { VAPID_PUBLIC_KEY: process.env.VAPID_PUBLIC_KEY });
 });
+
+// API：提供 VAPID 公鑰
+app.get('/vapidPublicKey', (req, res) => {
+  res.send(process.env.VAPID_PUBLIC_KEY);
+});
+
+// API：儲存推送訂閱
+app.post('/subscribe', verifyToken, (req, res) => {
+  const subscription = req.body;
+  pool.query(
+    'INSERT INTO push_subscriptions (user_id, subscription) VALUES (?, ?)',
+    [req.user.id, JSON.stringify(subscription)],
+    (err) => {
+      if (err) {
+        console.error('Subscription Insert Error:', err.message);
+        return res.status(500).json({ error: '儲存訂閱失敗' });
+      }
+      res.json({ success: true });
+    }
+  );
+});
+
+// API：測試推送通知
+app.post('/test-push', verifyToken, (req, res) => {
+  pool.query('SELECT subscription FROM push_subscriptions WHERE user_id = ?', [req.user.id], (err, results) => {
+    if (err || !results.length) {
+      console.error('Subscription Query Error:', err?.message || '無訂閱');
+      return res.status(500).json({ error: '無訂閱' });
+    }
+    const subscription = JSON.parse(results[0].subscription);
+    webpush.sendNotification(subscription, JSON.stringify({
+      title: '測試通知',
+      body: '這是一條測試推送通知！',
+      icon: '/images/icon-192x192.png',
+      url: '/taskmanager'
+    })).then(() => res.json({ success: true }))
+      .catch(err => {
+        console.error('Test Push Error:', err);
+        res.status(500).json({ error: '推送失敗' });
+      });
+  });
+});
+
+// 定時檢查即將到期的任務並發送推送通知
+setInterval(() => {
+  const now = moment().tz('Asia/Hong_Kong');
+  const inFiveMinutes = now.clone().add(5, 'minutes');
+  pool.query(
+    'SELECT t.*, ps.subscription FROM tasks t JOIN push_subscriptions ps ON t.user_id = ps.user_id WHERE t.due_date BETWEEN ? AND ?',
+    [now.format('YYYY-MM-DD HH:mm:ss'), inFiveMinutes.format('YYYY-MM-DD HH:mm:ss')],
+    (err, results) => {
+      if (err) {
+        console.error('Task Notification Query Error:', err.message);
+        return;
+      }
+      results.forEach(task => {
+        const subscription = JSON.parse(task.subscription);
+        const payload = {
+          title: '任務提醒',
+          body: `您的任務 "${task.title}" 將於 ${moment(task.due_date).tz('Asia/Hong_Kong').format('YYYY-MM-DD HH:mm')} 到期！`,
+          icon: '/images/icon-192x192.png',
+          url: '/taskmanager'
+        };
+        webpush.sendNotification(subscription, JSON.stringify(payload))
+          .catch(err => console.error('Push Notification Error:', err));
+      });
+    }
+  );
+}, 60 * 1000); // 每分鐘檢查
 
 // API：取得用戶的所有任務
 app.get('/taskmanager/tasks', verifyToken, (req, res) => {
@@ -310,7 +399,7 @@ app.get('/taskmanager/tasks', verifyToken, (req, res) => {
       ...task,
       due_date: moment(task.due_date).tz('Asia/Hong_Kong').format('YYYY-MM-DDTHH:mm:ssZ')
     }));
-    console.log('傳送至前端的任務:', formattedResults); // 記錄傳送的任務
+    console.log('傳送至前端的任務:', formattedResults);
     res.json(formattedResults);
   });
 });
@@ -322,7 +411,7 @@ app.post('/taskmanager/add', verifyToken, (req, res) => {
     return res.status(400).json({ error: '請提供標題和到期日期' });
   }
   const formattedDueDate = moment.tz(due_date, 'Asia/Hong_Kong').format('YYYY-MM-DD HH:mm:ss');
-  console.log('儲存任務的到期時間:', formattedDueDate); // 記錄到期時間
+  console.log('儲存任務的到期時間:', formattedDueDate);
   pool.query('INSERT INTO tasks (user_id, title, description, due_date) VALUES (?, ?, ?, ?)',
     [req.user.id, title, description, formattedDueDate],
     (err, result) => {
@@ -343,7 +432,7 @@ app.put('/taskmanager/edit/:id', verifyToken, (req, res) => {
     return res.status(400).json({ error: '請提供標題和到期日期' });
   }
   const formattedDueDate = moment.tz(due_date, 'Asia/Hong_Kong').format('YYYY-MM-DD HH:mm:ss');
-  console.log('更新任務的到期時間:', formattedDueDate); // 記錄到期時間
+  console.log('更新任務的到期時間:', formattedDueDate);
   pool.query('UPDATE tasks SET title = ?, description = ?, due_date = ? WHERE id = ? AND user_id = ?',
     [title, description, formattedDueDate, taskId, req.user.id],
     (err) => {

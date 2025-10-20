@@ -68,31 +68,87 @@
   <script>
     let tasks = [];
 
+    // 將 Base64 字符串轉換為 Uint8Array
+    function urlBase64ToUint8Array(base64String) {
+      const padding = '='.repeat((4 - base64String.length % 4) % 4);
+      const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+      const rawData = window.atob(base64);
+      return Uint8Array.from([...rawData].map(char => char.charCodeAt(0)));
+    }
+
+    // 訂閱推送通知
+    function subscribeToPush() {
+      if ('serviceWorker' in navigator && 'PushManager' in window) {
+        navigator.serviceWorker.ready.then(registration => {
+          registration.pushManager.getSubscription().then(existingSubscription => {
+            if (existingSubscription) {
+              console.log('已有推送訂閱:', existingSubscription);
+              return;
+            }
+            registration.pushManager.subscribe({
+              userVisibleOnly: true,
+              applicationServerKey: urlBase64ToUint8Array('<%= VAPID_PUBLIC_KEY %>')
+            }).then(subscription => {
+              console.log('訂閱成功:', subscription);
+              fetch('/subscribe', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Cookie': document.cookie },
+                body: JSON.stringify(subscription)
+              }).then(response => response.json()).then(data => {
+                if (data.success) {
+                  console.log('推送訂閱儲存成功');
+                } else {
+                  console.error('推送訂閱儲存失敗:', data.error);
+                }
+              }).catch(err => console.error('推送訂閱儲存錯誤:', err));
+            }).catch(err => console.error('推送訂閱錯誤:', err));
+          });
+        });
+      } else {
+        console.warn('瀏覽器不支援推送通知');
+      }
+    }
+
+    // 檢查通知權限並請求
+    function checkNotificationPermission() {
+      if (Notification.permission === 'granted') {
+        subscribeToPush();
+      } else if (Notification.permission !== 'denied') {
+        Notification.requestPermission().then(permission => {
+          if (permission === 'granted') {
+            subscribeToPush();
+          } else {
+            console.warn('用戶拒絕通知權限');
+          }
+        });
+      }
+    }
+
     // 格式化日期時間
     function formatDateTime(date, time) {
       const result = moment(`${date} ${time}`, 'YYYY-MM-DD HH:mm').tz('Asia/Hong_Kong').format('YYYY-MM-DDTHH:mm:ssZ');
-      console.log(`格式化日期時間: ${date} ${time} -> ${result}`); // 記錄格式化結果
+      console.log(`格式化日期時間: ${date} ${time} -> ${result}`);
       return result;
     }
 
     // 格式化顯示的日期時間
     function formatDisplayDateTime(datetime) {
       const formatted = moment(datetime).tz('Asia/Hong_Kong').format('YYYY-MM-DD HH:mm');
-      console.log(`格式化顯示時間: ${datetime} -> ${formatted}`); // 記錄格式化結果
+      console.log(`格式化顯示時間: ${datetime} -> ${formatted}`);
       return formatted;
     }
 
     // 載入任務
     function loadTasks() {
-      fetch('/taskmanager/tasks')
+      fetch('/taskmanager/tasks', { headers: { 'Cookie': document.cookie } })
         .then(response => response.json())
         .then(data => {
-          console.log('從伺服器接收的任務:', data); // 記錄原始資料
+          console.log('從伺服器接收的任務:', data);
           console.log('格式化後的日曆任務:', data.map(task => ({
             title: task.title,
             start: moment(task.due_date).tz('Asia/Hong_Kong').format('YYYY-MM-DDTHH:mm:ssZ'),
             allDay: false
-          }))); // 記錄傳遞給 FullCalendar 的資料
+          })));
           tasks = data;
           displayTaskList();
           renderCalendar();
@@ -128,14 +184,14 @@
         timeZone: 'Asia/Hong_Kong',
         events: tasks.map(task => {
           const start = moment(task.due_date).tz('Asia/Hong_Kong').format('YYYY-MM-DDTHH:mm:ssZ');
-          console.log(`任務 ${task.title} 的開始時間: ${start}`); // 記錄每個事件的開始時間
+          console.log(`任務 ${task.title} 的開始時間: ${start}`);
           return {
             title: task.title,
             start: start,
             allDay: false,
-            backgroundColor: '#FFFF00', // 黃色背景
-            borderColor: '#FFFF00', // 黃色邊框
-            textColor: '#000000' // 黑色文字
+            backgroundColor: '#FFFF00',
+            borderColor: '#FFFF00',
+            textColor: '#000000'
           };
         }),
         eventTimeFormat: {
@@ -144,10 +200,10 @@
           hour12: false
         },
         eventClick: function(info) {
-          console.log('點擊事件:', info.event.start, info.event.start.toISOString()); // 記錄點擊事件的時間
+          console.log('點擊事件:', info.event.start, info.event.start.toISOString());
         },
         datesSet: function(info) {
-          console.log('日曆時區:', calendar.getOption('timeZone')); // 記錄 FullCalendar 的時區
+          console.log('日曆時區:', calendar.getOption('timeZone'));
         }
       });
       calendar.render();
@@ -167,13 +223,13 @@
       }
 
       const dueDateTime = formatDateTime(dueDate, dueTime);
-      console.log('儲存任務的到期時間:', dueDateTime); // 記錄傳送的時間
+      console.log('儲存任務的到期時間:', dueDateTime);
       const method = id ? 'PUT' : 'POST';
       const url = id ? `/taskmanager/edit/${id}` : '/taskmanager/add';
 
       fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Cookie': document.cookie },
         body: JSON.stringify({ title, description, due_date: dueDateTime })
       })
       .then(response => response.json())
@@ -205,7 +261,8 @@
     function deleteTask(id) {
       if (confirm('確定要刪除此任務嗎？')) {
         fetch(`/taskmanager/delete/${id}`, {
-          method: 'DELETE'
+          method: 'DELETE',
+          headers: { 'Cookie': document.cookie }
         })
         .then(response => response.json())
         .then(data => {
@@ -225,8 +282,11 @@
       document.getElementById('taskId').value = '';
     }
 
-    // 頁面載入時載入任務
-    document.addEventListener('DOMContentLoaded', loadTasks);
+    // 頁面載入時執行
+    document.addEventListener('DOMContentLoaded', () => {
+      loadTasks();
+      checkNotificationPermission();
+    });
   </script>
 </body>
 </html>
