@@ -1,0 +1,23 @@
+{
+  "name": "技術人員內部網站",
+  "short_name": "技術網站",
+  "description": "一個專為技術人員設計的學習與管理平台",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f0c29",
+  "theme_color": "#00bfff",
+  "icons": [
+    {
+      "src": "/images/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/images/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "lang": "zh-TW",
+  "dir": "ltr"
+}

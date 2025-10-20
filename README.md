@@ -84,6 +84,62 @@ sudo certbot renew --dry-run
 h. 可以手動添加 Cron 任務
 sudo crontab -e
 0 0,12 * * * certbot renew --quiet
+
+## nginx.conf加入PWA功能
+/etc/nginx/conf.d/tools_app.conf
+``` 
+server {
+    server_name tools.mysandshome.com;
+
+    # 為 manifest.json 設置正確的 MIME 類型
+    location = /manifest.json {
+        add_header Content-Type application/json;
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+    }
+
+    # 為 sw.js 設置正確的 MIME 類型
+    location = /sw.js {
+        add_header Content-Type application/javascript;
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+    }
+
+    # 其他請求
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+    }
+
+    listen 443 ssl; # managed by Certbot
+    ssl_certificate /etc/letsencrypt/live/tools.mysandshome.com/fullchain.pem; # managed by Certbot
+    ssl_certificate_key /etc/letsencrypt/live/tools.mysandshome.com/privkey.pem; # managed by Certbot
+    include /etc/letsencrypt/options-ssl-nginx.conf; # managed by Certbot
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; # managed by Certbot
+}
+
+server {
+    listen 80;
+    server_name tools.mysandshome.com;
+    if ($host = tools.mysandshome.com) {
+        return 301 https://$host$request_uri;
+    } # managed by Certbot
+    return 404; # managed by Certbot
+}
+```
+
 ## 測試並重載
 sudo nginx -t
 sudo systemctl reload nginx

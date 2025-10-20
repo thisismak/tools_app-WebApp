@@ -1,0 +1,16 @@
+<meta name="theme-color" content="#00bfff">
+<link rel="manifest" href="/manifest.json">
+<script>
+  // 檢查是否支持 Service Worker
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js')
+        .then(registration => {
+          console.log('Service Worker 註冊成功:', registration);
+        })
+        .catch(err => {
+          console.error('Service Worker 註冊失敗:', err);
+        });
+    });
+  }
+</script>
