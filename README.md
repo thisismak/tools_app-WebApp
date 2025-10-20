@@ -350,3 +350,6 @@ Dir2file: Export Directory to File
 - Opens a QuickPick menu to select specific files for export.
 Dir2file: Select Files to Export
 PS: 先安裝Export Directory to File
+
+## 刪除不必要的備份檔
+find /opt/tools_app-webapp -type f -name "*.bak" -delete
