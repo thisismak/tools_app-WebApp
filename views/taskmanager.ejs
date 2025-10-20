@@ -9,6 +9,14 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/moment-timezone/0.5.34/moment-timezone-with-data.min.js"></script>
   <title>任務管理</title>
+  <style>
+    /* 自定義 FullCalendar 事件樣式 */
+    .fc-event {
+      background-color: #FFFF00 !important; /* 黃色背景 */
+      border-color: #FFFF00 !important; /* 黃色邊框 */
+      color: #000000 !important; /* 黑色文字 */
+    }
+  </style>
 </head>
 <body>
   <div class="container mt-5">
@@ -123,7 +131,10 @@
           return {
             title: task.title,
             start: start,
-            allDay: false
+            allDay: false,
+            backgroundColor: '#FFFF00', // 黃色背景
+            borderColor: '#FFFF00', // 黃色邊框
+            textColor: '#000000' // 黑色文字
           };
         }),
         eventTimeFormat: {
