@@ -30,6 +30,8 @@ npm install
 ## 如果出現 bcrypt 編譯錯誤（常見於 Linux），安裝 build 工具
 sudo dnf install -y gcc-c++ make
 npm install bcryptjs --save
+## 安裝 moment-timezone 套件，用於在 Node.js 和前端處理時區相關的日期和時間。
+npm install -y moment-timezone
 ## 全域安裝 PM2
 sudo npm install -g pm2
 ## 啟動應用程式
