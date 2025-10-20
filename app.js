@@ -5,9 +5,10 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const bodyParser = require('body-parser');
 const cookieParser = require('cookie-parser');
+const moment = require('moment-timezone'); // 加入 moment-timezone
 const app = express();
 
-// Set Node.js timezone to Hong Kong (UTC+8)
+// 設定 Node.js 時區為香港（UTC+8）
 process.env.TZ = 'Asia/Hong_Kong';
 
 app.use(bodyParser.urlencoded({ extended: true }));
@@ -16,7 +17,7 @@ app.use(cookieParser());
 app.use(express.static('public'));
 app.set('view engine', 'ejs');
 
-// 數據庫連接池
+// 資料庫連線池
 const pool = mysql.createPool({
   host: process.env.DB_HOST,
   port: process.env.DB_PORT || 3306,
@@ -26,7 +27,7 @@ const pool = mysql.createPool({
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
-  timezone: '+08:00' // Set MySQL connection to UTC+8
+  timezone: '+08:00' // 設定 MySQL 連線為 UTC+8
 });
 
 // 創建用戶表
@@ -79,7 +80,7 @@ pool.query(`CREATE TABLE IF NOT EXISTS tasks (
   user_id INT NOT NULL,
   title VARCHAR(255) NOT NULL,
   description TEXT,
-  due_date DATETIME NOT NULL, -- Changed from DATE to DATETIME for hour/minute support
+  due_date DATETIME NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id)
 )`, (err) => {
@@ -305,7 +306,12 @@ app.get('/taskmanager/tasks', verifyToken, (req, res) => {
       console.error('Tasks Query Error:', err.message);
       return res.status(500).json({ error: '取得任務失敗' });
     }
-    res.json(results);
+    const formattedResults = results.map(task => ({
+      ...task,
+      due_date: moment(task.due_date).tz('Asia/Hong_Kong').format('YYYY-MM-DDTHH:mm:ssZ')
+    }));
+    console.log('傳送至前端的任務:', formattedResults); // 記錄傳送的任務
+    res.json(formattedResults);
   });
 });
 
@@ -315,8 +321,10 @@ app.post('/taskmanager/add', verifyToken, (req, res) => {
   if (!title || !due_date) {
     return res.status(400).json({ error: '請提供標題和到期日期' });
   }
+  const formattedDueDate = moment.tz(due_date, 'Asia/Hong_Kong').format('YYYY-MM-DD HH:mm:ss');
+  console.log('儲存任務的到期時間:', formattedDueDate); // 記錄到期時間
   pool.query('INSERT INTO tasks (user_id, title, description, due_date) VALUES (?, ?, ?, ?)',
-    [req.user.id, title, description, due_date],
+    [req.user.id, title, description, formattedDueDate],
     (err, result) => {
       if (err) {
         console.error('Task Insert Error:', err.message);
@@ -334,8 +342,10 @@ app.put('/taskmanager/edit/:id', verifyToken, (req, res) => {
   if (!title || !due_date) {
     return res.status(400).json({ error: '請提供標題和到期日期' });
   }
+  const formattedDueDate = moment.tz(due_date, 'Asia/Hong_Kong').format('YYYY-MM-DD HH:mm:ss');
+  console.log('更新任務的到期時間:', formattedDueDate); // 記錄到期時間
   pool.query('UPDATE tasks SET title = ?, description = ?, due_date = ? WHERE id = ? AND user_id = ?',
-    [title, description, due_date, taskId, req.user.id],
+    [title, description, formattedDueDate, taskId, req.user.id],
     (err) => {
       if (err) {
         console.error('Task Update Error:', err.message);

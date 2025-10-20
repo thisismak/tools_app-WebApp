@@ -6,6 +6,8 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="/css/style.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/moment-timezone/0.5.34/moment-timezone-with-data.min.js"></script>
   <title>任務管理</title>
 </head>
 <body>
@@ -59,20 +61,16 @@
 
     // 格式化日期時間
     function formatDateTime(date, time) {
-      return `${date}T${time}:00`;
+      const result = moment(`${date} ${time}`, 'YYYY-MM-DD HH:mm').tz('Asia/Hong_Kong').format('YYYY-MM-DDTHH:mm:ssZ');
+      console.log(`格式化日期時間: ${date} ${time} -> ${result}`); // 記錄格式化結果
+      return result;
     }
 
     // 格式化顯示的日期時間
     function formatDisplayDateTime(datetime) {
-      const dt = new Date(datetime);
-      return dt.toLocaleString('zh-TW', { 
-        year: 'numeric', 
-        month: '2-digit', 
-        day: '2-digit', 
-        hour: '2-digit', 
-        minute: '2-digit',
-        hour12: false 
-      });
+      const formatted = moment(datetime).tz('Asia/Hong_Kong').format('YYYY-MM-DD HH:mm');
+      console.log(`格式化顯示時間: ${datetime} -> ${formatted}`); // 記錄格式化結果
+      return formatted;
     }
 
     // 載入任務
@@ -80,11 +78,17 @@
       fetch('/taskmanager/tasks')
         .then(response => response.json())
         .then(data => {
+          console.log('從伺服器接收的任務:', data); // 記錄原始資料
+          console.log('格式化後的日曆任務:', data.map(task => ({
+            title: task.title,
+            start: moment(task.due_date).tz('Asia/Hong_Kong').format('YYYY-MM-DDTHH:mm:ssZ'),
+            allDay: false
+          }))); // 記錄傳遞給 FullCalendar 的資料
           tasks = data;
           displayTaskList();
           renderCalendar();
         })
-        .catch(err => console.error('Load Tasks Error:', err));
+        .catch(err => console.error('載入任務錯誤:', err));
     }
 
     // 顯示任務列表
@@ -113,15 +117,25 @@
       const calendar = new FullCalendar.Calendar(calendarEl, {
         initialView: 'dayGridMonth',
         timeZone: 'Asia/Hong_Kong',
-        events: tasks.map(task => ({
-          title: task.title,
-          start: task.due_date,
-          allDay: false
-        })),
+        events: tasks.map(task => {
+          const start = moment(task.due_date).tz('Asia/Hong_Kong').format('YYYY-MM-DDTHH:mm:ssZ');
+          console.log(`任務 ${task.title} 的開始時間: ${start}`); // 記錄每個事件的開始時間
+          return {
+            title: task.title,
+            start: start,
+            allDay: false
+          };
+        }),
         eventTimeFormat: {
           hour: '2-digit',
           minute: '2-digit',
           hour12: false
+        },
+        eventClick: function(info) {
+          console.log('點擊事件:', info.event.start, info.event.start.toISOString()); // 記錄點擊事件的時間
+        },
+        datesSet: function(info) {
+          console.log('日曆時區:', calendar.getOption('timeZone')); // 記錄 FullCalendar 的時區
         }
       });
       calendar.render();
@@ -141,6 +155,7 @@
       }
 
       const dueDateTime = formatDateTime(dueDate, dueTime);
+      console.log('儲存任務的到期時間:', dueDateTime); // 記錄傳送的時間
       const method = id ? 'PUT' : 'POST';
       const url = id ? `/taskmanager/edit/${id}` : '/taskmanager/add';
 
@@ -158,7 +173,7 @@
           alert(data.error || '儲存任務失敗');
         }
       })
-      .catch(err => console.error('Save Task Error:', err));
+      .catch(err => console.error('儲存任務錯誤:', err));
     }
 
     // 編輯任務
@@ -168,9 +183,9 @@
         document.getElementById('taskId').value = task.id;
         document.getElementById('title').value = task.title;
         document.getElementById('description').value = task.description || '';
-        const dueDateTime = new Date(task.due_date);
-        document.getElementById('dueDate').value = dueDateTime.toISOString().split('T')[0];
-        document.getElementById('dueTime').value = dueDateTime.toTimeString().slice(0, 5);
+        const dueDateTime = moment(task.due_date).tz('Asia/Hong_Kong');
+        document.getElementById('dueDate').value = dueDateTime.format('YYYY-MM-DD');
+        document.getElementById('dueTime').value = dueDateTime.format('HH:mm');
       }
     }
 
@@ -188,7 +203,7 @@
             alert(data.error || '刪除任務失敗');
           }
         })
-        .catch(err => console.error('Delete Task Error:', err));
+        .catch(err => console.error('刪除任務錯誤:', err));
       }
     }
 
