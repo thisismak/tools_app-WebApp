@@ -32,6 +32,7 @@ sudo dnf install -y gcc-c++ make
 npm install bcryptjs --save
 ## 安裝 moment-timezone 套件，用於在 Node.js 和前端處理時區相關的日期和時間。
 npm install -y moment-timezone
+npm install express mysql2 bcryptjs jsonwebtoken body-parser cookie-parser moment moment-timezone web-push dotenv ejs
 ## 全域安裝 PM2
 sudo npm install -g pm2
 ## 啟動應用程式

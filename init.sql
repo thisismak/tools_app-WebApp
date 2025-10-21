@@ -1,0 +1,63 @@
+-- 創建用戶表
+CREATE TABLE IF NOT EXISTS users (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  username VARCHAR(255) NOT NULL,
+  email VARCHAR(255) NOT NULL UNIQUE,
+  password VARCHAR(255) NOT NULL
+);
+
+-- 創建生字庫表
+CREATE TABLE IF NOT EXISTS wordlists (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  name VARCHAR(255) NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- 創建生字表
+CREATE TABLE IF NOT EXISTS words (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  wordlist_id INT NOT NULL,
+  english VARCHAR(255) NOT NULL,
+  chinese VARCHAR(255) NOT NULL,
+  FOREIGN KEY (wordlist_id) REFERENCES wordlists(id) ON DELETE CASCADE
+);
+
+-- 創建任務表
+CREATE TABLE IF NOT EXISTS tasks (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  description TEXT,
+  due_date DATETIME NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  notified BOOLEAN DEFAULT FALSE,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- 檢查並添加 notified 字段
+SET @column_exists = (
+  SELECT COUNT(*)
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_NAME = 'tasks' AND COLUMN_NAME = 'notified'
+);
+SET @sql = IF(@column_exists = 0,
+  'ALTER TABLE tasks ADD COLUMN notified BOOLEAN DEFAULT FALSE',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- 初始化現有任務的 notified 狀態
+UPDATE tasks SET notified = TRUE WHERE due_date < NOW();
+
+-- 創建推送訂閱表
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  subscription JSON NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
