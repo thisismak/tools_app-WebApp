@@ -110,19 +110,24 @@
     }
 
     // 檢查通知權限並請求
-    function checkNotificationPermission() {
-      if (Notification.permission === 'granted') {
+function checkNotificationPermission() {
+  if (Notification.permission === 'granted') {
+    subscribeToPush();
+  } else if (Notification.permission !== 'denied') {
+    alert('請啟用通知以接收任務到期提醒！');
+    Notification.requestPermission().then(permission => {
+      if (permission === 'granted') {
         subscribeToPush();
-      } else if (Notification.permission !== 'denied') {
-        Notification.requestPermission().then(permission => {
-          if (permission === 'granted') {
-            subscribeToPush();
-          } else {
-            console.warn('用戶拒絕通知權限');
-          }
-        });
+      } else {
+        console.warn('用戶拒絕通知權限');
+        alert('您已拒絕通知權限，無法接收任務提醒。');
       }
-    }
+    });
+  } else {
+    console.warn('用戶拒絕通知權限');
+    alert('通知權限已被拒絕，請在瀏覽器設置中啟用以接收任務提醒。');
+  }
+}
 
     // 格式化日期時間
     function formatDateTime(date, time) {
@@ -210,39 +215,39 @@
     }
 
     // 儲存任務（新增或編輯）
-    function saveTask() {
-      const id = document.getElementById('taskId').value;
-      const title = document.getElementById('title').value.trim();
-      const description = document.getElementById('description').value.trim();
-      const dueDate = document.getElementById('dueDate').value;
-      const dueTime = document.getElementById('dueTime').value;
+function saveTask() {
+  const id = document.getElementById('taskId').value;
+  const title = document.getElementById('title').value.trim();
+  const description = document.getElementById('description').value.trim();
+  const dueDate = document.getElementById('dueDate').value;
+  const dueTime = document.getElementById('dueTime').value;
 
-      if (!title || !dueDate || !dueTime) {
-        alert('請填寫標題、到期日期和到期時間！');
-        return;
-      }
+  if (!title || !dueDate || !dueTime) {
+    alert('請填寫標題、到期日期和到期時間！');
+    return;
+  }
 
-      const dueDateTime = formatDateTime(dueDate, dueTime);
-      console.log('儲存任務的到期時間:', dueDateTime);
-      const method = id ? 'PUT' : 'POST';
-      const url = id ? `/taskmanager/edit/${id}` : '/taskmanager/add';
+  const dueDateTime = formatDateTime(dueDate, dueTime);
+  console.log('儲存任務的到期時間:', dueDateTime);
+  const method = id ? 'PUT' : 'POST';
+  const url = id ? `/taskmanager/edit/${id}` : '/taskmanager/add';
 
-      fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json', 'Cookie': document.cookie },
-        body: JSON.stringify({ title, description, due_date: dueDateTime })
-      })
-      .then(response => response.json())
-      .then(data => {
-        if (data.success) {
-          loadTasks();
-          resetForm();
-        } else {
-          alert(data.error || '儲存任務失敗');
-        }
-      })
-      .catch(err => console.error('儲存任務錯誤:', err));
+  fetch(url, {
+    method,
+    headers: { 'Content-Type': 'application/json', 'Cookie': document.cookie },
+    body: JSON.stringify({ title, description, due_date: dueDateTime })
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      loadTasks();
+      resetForm();
+    } else {
+      alert(data.error || '儲存任務失敗');
     }
+  })
+  .catch(err => console.error('儲存任務錯誤:', err));
+}
 
     // 編輯任務
     function editTask(id) {

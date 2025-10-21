@@ -366,7 +366,7 @@ setInterval(() => {
   const now = moment().tz('Asia/Hong_Kong');
   const inFiveMinutes = now.clone().add(5, 'minutes');
   pool.query(
-    'SELECT t.*, ps.subscription FROM tasks t JOIN push_subscriptions ps ON t.user_id = ps.user_id WHERE t.due_date BETWEEN ? AND ?',
+    'SELECT t.*, ps.subscription FROM tasks t JOIN push_subscriptions ps ON t.user_id = ps.user_id WHERE t.due_date BETWEEN ? AND ? AND t.notified = FALSE',
     [now.format('YYYY-MM-DD HH:mm:ss'), inFiveMinutes.format('YYYY-MM-DD HH:mm:ss')],
     (err, results) => {
       if (err) {
@@ -382,11 +382,17 @@ setInterval(() => {
           url: '/taskmanager'
         };
         webpush.sendNotification(subscription, JSON.stringify(payload))
+          .then(() => {
+            // 標記任務已通知
+            pool.query('UPDATE tasks SET notified = TRUE WHERE id = ?', [task.id], (err) => {
+              if (err) console.error('Update Notified Error:', err.message);
+            });
+          })
           .catch(err => console.error('Push Notification Error:', err));
       });
     }
   );
-}, 60 * 1000); // 每分鐘檢查
+}, 30 * 1000);
 
 // API：取得用戶的所有任務
 app.get('/taskmanager/tasks', verifyToken, (req, res) => {
