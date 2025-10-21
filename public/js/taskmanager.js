@@ -113,25 +113,20 @@ function formatDateTime(date, time) {
   if (!date || !time) {
     throw new Error('日期和時間不能為空');
   }
-
   try {
     const dateTime = moment.tz(`${date} ${time}`, 'YYYY-MM-DD HH:mm', 'Asia/Hong_Kong');
-    
     if (!dateTime.isValid()) {
       throw new Error('無效的日期時間格式');
     }
-
     if (dateTime.isBefore(moment())) {
       throw new Error('到期時間必須是未來時間');
     }
-
     const formatted = dateTime.format('YYYY-MM-DDTHH:mm:ss.SSSZ');
     console.log('格式化日期時間:', {
       input: `${date} ${time}`,
       output: formatted,
       timezone: dateTime.tz()
     });
-    
     return formatted;
   } catch (err) {
     console.error('日期格式化錯誤:', err);
@@ -194,10 +189,15 @@ function displayTaskList() {
   });
 }
 
-function renderCalendar() {
+function renderCalendar(attempt = 1) {
   if (typeof FullCalendar === 'undefined') {
-    console.error('FullCalendar 未載入');
-    alert('日曆功能載入失敗，請重新載入');
+    console.error(`FullCalendar 未載入，嘗試次數: ${attempt}`);
+    if (attempt < 3) {
+      console.log(`重試 renderCalendar，次數: ${attempt + 1}`);
+      setTimeout(() => renderCalendar(attempt + 1), 2000);
+      return;
+    }
+    alert('日曆功能載入失敗，請重新載入頁面');
     return;
   }
   const calendarEl = document.getElementById('calendar');
@@ -237,6 +237,12 @@ function saveTask() {
     return;
   }
 
+  // Validate date and time format
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate) || !/^\d{2}:\d{2}$/.test(dueTime)) {
+    alert('請輸入有效的日期（YYYY-MM-DD）和時間（HH:mm）格式！');
+    return;
+  }
+
   try {
     const dueDateTime = moment.tz(`${dueDate} ${dueTime}`, 'YYYY-MM-DD HH:mm', 'Asia/Hong_Kong')
       .format('YYYY-MM-DDTHH:mm:ss.SSSZ');
@@ -246,6 +252,8 @@ function saveTask() {
       description: description || '',
       due_date: dueDateTime
     };
+
+    console.log('儲存任務請求數據:', payload);
 
     const method = id ? 'PUT' : 'POST';
     const url = id ? `/taskmanager/edit/${id}` : '/taskmanager/add';
@@ -258,8 +266,20 @@ function saveTask() {
       credentials: 'include',
       body: JSON.stringify(payload)
     })
-    .then(response => response.json())
+    .then(response => {
+      console.log('儲存任務響應狀態:', response.status, response.statusText);
+      if (!response.ok) {
+        return response.text().then(text => {
+          throw new Error(`HTTP ${response.status}: ${text}`);
+        });
+      }
+      return response.json();
+    })
     .then(data => {
+      console.log('儲存任務響應數據:', data);
+      if (!data || typeof data !== 'object') {
+        throw new Error('無效的響應數據');
+      }
       if (!data.success) {
         throw new Error(data.error || '儲存失敗');
       }
@@ -268,9 +288,11 @@ function saveTask() {
       alert('任務已儲存！');
     })
     .catch(err => {
+      console.error('儲存任務錯誤:', err);
       alert('儲存任務失敗: ' + (err.message || '未知錯誤'));
     });
   } catch (err) {
+    console.error('請求準備失敗:', err);
     alert('請求準備失敗: ' + err.message);
   }
 }
@@ -395,6 +417,7 @@ window.resetForm = resetForm;
 
 // 在這裡綁定 DOMContentLoaded 事件，確保頁面元素已載入
 document.addEventListener('DOMContentLoaded', function () {
+  console.log('DOMContentLoaded 事件觸發，FullCalendar 狀態:', typeof FullCalendar);
   try {
     if (typeof loadTasks !== 'function') {
       console.warn('loadTasks 未定義，將略過載入。');

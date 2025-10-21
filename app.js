@@ -97,13 +97,13 @@ app.get('/dictation', verifyToken, async (req, res) => {
 app.post('/dictation/save', verifyToken, async (req, res) => {
   const { wordlistName, words } = req.body;
   if (!wordlistName || !words || !Array.isArray(words)) {
-    return res.status(400).json({ error: '請提供生字庫名稱和有效的生字列表' });
+    return res.status(400).json({ success: false, error: '請提供生字庫名稱和有效的生字列表' });
   }
   try {
     const wordlistId = await wordlistService.createWordlist(req.user.id, wordlistName, words);
     res.json({ success: true, wordlistId });
   } catch (err) {
-    res.status(500).json({ error: '儲存生字庫失敗' });
+    res.status(500).json({ success: false, error: '儲存生字庫失敗' });
   }
 });
 
@@ -112,7 +112,7 @@ app.get('/dictation/words/:wordlistId', verifyToken, async (req, res) => {
     const words = await wordService.getWordsByWordlist(req.params.wordlistId);
     res.json(words);
   } catch (err) {
-    res.status(500).json({ error: '取得生字失敗' });
+    res.status(500).json({ success: false, error: '取得生字失敗' });
   }
 });
 
@@ -121,33 +121,33 @@ app.delete('/dictation/wordlist/:wordlistId', verifyToken, async (req, res) => {
     await wordlistService.deleteWordlist(req.user.id, req.params.wordlistId);
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ error: '刪除生字庫失敗' });
+    res.status(500).json({ success: false, error: '刪除生字庫失敗' });
   }
 });
 
 app.put('/dictation/words/:wordlistId', verifyToken, async (req, res) => {
   const { words } = req.body;
   if (!words || !Array.isArray(words)) {
-    return res.status(400).json({ error: '請提供有效的生字列表' });
+    return res.status(400).json({ success: false, error: '請提供有效的生字列表' });
   }
   try {
     await wordService.updateWords(req.params.wordlistId, words);
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ error: '更新生字失敗' });
+    res.status(500).json({ success: false, error: '更新生字失敗' });
   }
 });
 
 app.post('/dictation/word/:wordlistId', verifyToken, async (req, res) => {
   const { english, chinese } = req.body;
   if (!english || !chinese) {
-    return res.status(400).json({ error: '請提供英文和中文解釋' });
+    return res.status(400).json({ success: false, error: '請提供英文和中文解釋' });
   }
   try {
     const wordId = await wordService.addWord(req.params.wordlistId, req.user.id, english, chinese);
     res.json({ success: true, wordId });
   } catch (err) {
-    res.status(err.message.includes('無效的生字庫') ? 403 : 500).json({ error: err.message });
+    res.status(err.message.includes('無效的生字庫') ? 403 : 500).json({ success: false, error: err.message });
   }
 });
 
@@ -164,7 +164,7 @@ app.post('/subscribe', verifyToken, async (req, res) => {
     await subscriptionService.saveSubscription(req.user.id, req.body);
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ error: '儲存訂閱失敗' });
+    res.status(500).json({ success: false, error: '儲存訂閱失敗' });
   }
 });
 
@@ -179,7 +179,7 @@ app.post('/test-push', verifyToken, async (req, res) => {
     }));
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
@@ -204,38 +204,44 @@ setInterval(async () => {
   } catch (err) {
     console.error('Task Notification Query Error:', err.message);
   }
-}, 60 * 1000); // Adjusted to 60 seconds as per previous suggestion
+}, 60 * 1000);
 
 app.get('/taskmanager/tasks', verifyToken, async (req, res) => {
   try {
     const tasks = await taskService.getTasks(req.user.id);
     console.log('返回任務列表:', { userId: req.user.id, tasks });
-    res.json(tasks || []); // Ensure array is returned
+    res.json(tasks || []);
   } catch (err) {
     console.error('取得任務失敗:', err.message);
-    res.status(500).json({ error: '取得任務失敗' });
+    res.status(500).json({ success: false, error: '取得任務失敗' });
   }
 });
 
 app.post('/taskmanager/add', verifyToken, async (req, res) => {
   const { title, description, due_date } = req.body;
-
+  console.log('收到任務新增請求:', { title, description, due_date });
   if (!title || !due_date) {
     return res.status(400).json({
       success: false,
       error: '請提供標題和到期時間'
     });
   }
-
   try {
-    const parsedDate = moment(due_date);
-    if (!parsedDate.isValid() || parsedDate.isBefore(moment())) {
+    const parsedDate = moment(due_date, moment.ISO_8601, true);
+    if (!parsedDate.isValid()) {
+      console.error('無效的日期格式:', due_date);
       return res.status(400).json({
         success: false,
-        error: '無效的日期時間格式或過期時間'
+        error: '無效的日期時間格式'
       });
     }
-
+    if (parsedDate.isBefore(moment())) {
+      console.error('到期時間早於當前時間:', due_date);
+      return res.status(400).json({
+        success: false,
+        error: '到期時間必須是未來時間'
+      });
+    }
     const normalizedDate = parsedDate.format('YYYY-MM-DDTHH:mm:ss.SSSZ');
     const taskId = await taskService.addTask(
       req.user.id,
@@ -243,13 +249,12 @@ app.post('/taskmanager/add', verifyToken, async (req, res) => {
       (description || '').trim(),
       normalizedDate
     );
-
     res.json({
       success: true,
       taskId
     });
-
   } catch (err) {
+    console.error('創建任務錯誤:', err.message);
     res.status(400).json({
       success: false,
       error: err.message || '創建任務失敗'
@@ -259,11 +264,28 @@ app.post('/taskmanager/add', verifyToken, async (req, res) => {
 
 app.put('/taskmanager/edit/:id', verifyToken, async (req, res) => {
   const { title, description, due_date } = req.body;
+  console.log('收到任務編輯請求:', { id: req.params.id, title, description, due_date });
   try {
+    const parsedDate = moment(due_date, moment.ISO_8601, true);
+    if (!parsedDate.isValid()) {
+      console.error('無效的日期格式:', due_date);
+      return res.status(400).json({
+        success: false,
+        error: '無效的日期時間格式'
+      });
+    }
+    if (parsedDate.isBefore(moment())) {
+      console.error('到期時間早於當前時間:', due_date);
+      return res.status(400).json({
+        success: false,
+        error: '到期時間必須是未來時間'
+      });
+    }
     await taskService.editTask(req.user.id, req.params.id, title, description, due_date);
     res.json({ success: true });
   } catch (err) {
-    res.status(400).json({ error: err.message });
+    console.error('編輯任務錯誤:', err.message);
+    res.status(400).json({ success: false, error: err.message });
   }
 });
 
@@ -272,13 +294,14 @@ app.delete('/taskmanager/delete/:id', verifyToken, async (req, res) => {
     await taskService.deleteTask(req.user.id, req.params.id);
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ error: '刪除任務失敗' });
+    console.error('刪除任務錯誤:', err.message);
+    res.status(500).json({ success: false, error: '刪除任務失敗' });
   }
 });
 
 app.use((err, req, res, next) => {
   console.error('Global Error:', err.message);
-  res.status(500).send('伺服器內部錯誤');
+  res.status(500).json({ success: false, error: '伺服器內部錯誤' });
 });
 
 app.listen(process.env.PORT, () => console.log(`Server running on port ${process.env.PORT}`));

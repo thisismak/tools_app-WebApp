@@ -7,6 +7,7 @@ const PRECACHE_URLS = [
   '/images/icon-512x512.png',
   '/offline.html',
   'https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css',
+  'https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/main.min.css',
   'https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/moment-timezone/0.5.34/moment-timezone-with-data.min.js',
@@ -45,7 +46,7 @@ self.addEventListener('activate', event => {
 
 async function putInCache(request, response) {
   if (!response || !response.ok) {
-    console.warn('無法快取無效響應:', request.url);
+    console.warn('無法快取無效響應:', request.url, '狀態:', response?.status, response?.statusText);
     return;
   }
   try {
@@ -54,7 +55,7 @@ async function putInCache(request, response) {
     await cache.put(request, clonedResponse);
     console.log('快取成功:', request.url);
   } catch (err) {
-    console.error('快取 put 失敗:', err);
+    console.error('快取 put 失敗:', request.url, err);
   }
 }
 
@@ -85,7 +86,15 @@ self.addEventListener('fetch', event => {
             return response.clone();
           })
           .catch(err => {
-            console.error('網絡請求失敗:', err);
+            console.error('網絡請求失敗:', event.request.url, err);
+            if (event.request.url.includes('main.min.css')) {
+              console.warn('FullCalendar CSS 載入失敗，提供空響應作為回退');
+              return new Response('', {
+                status: 200,
+                statusText: 'OK',
+                headers: { 'Content-Type': 'text/css' }
+              });
+            }
             return caches.match('/offline.html')
               .then(offlineResponse => {
                 if (offlineResponse) {
@@ -97,7 +106,7 @@ self.addEventListener('fetch', event => {
           });
       })
       .catch(err => {
-        console.error('快取匹配錯誤:', err);
+        console.error('快取匹配錯誤:', event.request.url, err);
         return new Response('服務不可用，請檢查網絡連線', {
           status: 503,
           statusText: 'Service Unavailable'
