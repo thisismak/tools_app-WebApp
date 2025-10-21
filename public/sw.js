@@ -36,23 +36,24 @@ self.addEventListener('fetch', event => {
       .then(response => {
         if (response) {
           console.log('從快取返回:', event.request.url);
-          return response;
+          return response; // 直接返回快取響應
         }
         console.log('從網絡獲取:', event.request.url);
-        return fetch(event.request).then(networkResponse => {
-          if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
+        return fetch(event.request, { redirect: 'follow' }) // 明確設置 redirect: follow
+          .then(networkResponse => {
+            if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
+              return networkResponse;
+            }
+            const responseToCache = networkResponse.clone();
+            caches.open(CACHE_NAME)
+              .then(cache => {
+                cache.put(event.request, responseToCache);
+              });
             return networkResponse;
-          }
-          const responseToCache = networkResponse.clone();
-          caches.open(CACHE_NAME)
-            .then(cache => {
-              cache.put(event.request, responseToCache);
-            });
-          return networkResponse;
-        }).catch(err => {
-          console.error('網絡請求失敗:', err);
-          throw err;
-        });
+          }).catch(err => {
+            console.error('網絡請求失敗:', err);
+            throw err;
+          });
       })
   );
 });
