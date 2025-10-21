@@ -4,336 +4,36 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link href="/css/style.css" rel="stylesheet">
-  <%- include('partials/pwa') %>
-  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/moment-timezone/0.5.34/moment-timezone-with-data.min.js"></script>
+  <script src="/js/taskmanager.js"></script>
   <title>任務管理</title>
-  <style>
-    .fc-event {
-      background-color: #FFFF00 !important;
-      border-color: #FFFF00 !important;
-      color: #000000 !important;
-    }
-  </style>
 </head>
 <body>
   <div class="container mt-5">
-    <h2 class="text-center">任務管理</h2>
-    <div class="text-center mt-3">
-      <a href="/dashboard" class="btn btn-secondary">返回儀表板</a>
-    </div>
-
+    <form id="taskForm">
+      <input type="hidden" id="taskId">
+      <div class="mb-3">
+        <label for="title" class="form-label">任務標題</label>
+        <input type="text" id="title" class="form-control" required>
+      </div>
+      <div class="mb-3">
+        <label for="description" class="form-label">任務描述</label>
+        <textarea id="description" class="form-control" rows="3"></textarea>
+      </div>
+      <div class="mb-3">
+        <label for="dueDate" class="form-label">到期日期</label>
+        <input type="date" id="dueDate" class="form-control" required>
+      </div>
+      <div class="mb-3">
+        <label for="dueTime" class="form-label">到期時間</label>
+        <input type="time" id="dueTime" class="form-control" required>
+      </div>
+      <button type="button" onclick="saveTask()" class="btn btn-primary">儲存任務</button>
+    </form>
     <div class="mt-4">
-      <h3>新增/編輯任務</h3>
-      <form id="taskForm">
-        <input type="hidden" id="taskId">
-        <div class="mb-3">
-          <label for="title" class="form-label">任務標題</label>
-          <input type="text" id="title" class="form-control" required>
-        </div>
-        <div class="mb-3">
-          <label for="description" class="form-label">任務描述</label>
-          <textarea id="description" class="form-control" rows="3"></textarea>
-        </div>
-        <div class="mb-3">
-          <label for="dueDate" class="form-label">到期日期</label>
-          <input type="date" id="dueDate" class="form-control" required>
-        </div>
-        <div class="mb-3">
-          <label for="dueTime" class="form-label">到期時間</label>
-          <input type="time" id="dueTime" class="form-control" required>
-        </div>
-        <button type="button" onclick="saveTask()" class="btn btn-primary">儲存任務</button>
-        <button type="button" onclick="resetForm()" class="btn btn-secondary">重置</button>
-      </form>
-    </div>
-
-    <div class="mt-4">
-      <h3>任務列表</h3>
       <ul id="taskList" class="list-group"></ul>
     </div>
-
-    <div class="mt-4">
-      <h3>任務月曆</h3>
-      <div id="calendar"></div>
-    </div>
   </div>
-
-  <script>
-    let tasks = [];
-
-    function urlBase64ToUint8Array(base64String) {
-      const padding = '='.repeat((4 - base64String.length % 4) % 4);
-      const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-      const rawData = window.atob(base64);
-      return Uint8Array.from([...rawData].map(char => char.charCodeAt(0)));
-    }
-
-    function checkNotificationPermission() {
-      console.log('檢查通知權限，當前狀態:', Notification.permission);
-      if (Notification.permission === 'granted') {
-        console.log('通知權限已授予，開始訂閱推送');
-        subscribeToPush();
-      } else if (Notification.permission !== 'denied') {
-        console.log('請求通知權限');
-        alert('請啟用通知以接收任務到期提醒！');
-        Notification.requestPermission().then(permission => {
-          console.log('通知權限請求結果:', permission);
-          if (permission === 'granted') {
-            subscribeToPush();
-          } else {
-            console.warn('用戶拒絕通知權限:', permission);
-            alert('您已拒絕通知權限，無法接收任務提醒。請在瀏覽器設置中啟用通知。');
-          }
-        }).catch(err => {
-          console.error('通知權限請求錯誤:', err);
-          alert('請求通知權限失敗，請重試或檢查瀏覽器設置。');
-        });
-      } else {
-        console.warn('通知權限已被拒絕:', Notification.permission);
-        alert('通知權限已被拒絕，請在瀏覽器設置中啟用以接收任務提醒。');
-      }
-    }
-
-    function subscribeToPush() {
-      console.log('開始訂閱推送通知流程');
-      if (!('serviceWorker' in navigator && 'PushManager' in window)) {
-        console.warn('瀏覽器不支援推送通知或 Service Worker');
-        alert('您的瀏覽器不支援推送通知，無法接收任務提醒。');
-        return;
-      }
-      navigator.serviceWorker.ready.then(registration => {
-        console.log('Service Worker 準備就緒，註冊狀態:', registration.active?.state);
-        registration.pushManager.getSubscription().then(existingSubscription => {
-          if (existingSubscription) {
-            console.log('發現現有推送訂閱:', existingSubscription.endpoint);
-            saveSubscriptionToServer(existingSubscription);
-            return;
-          }
-          console.log('無現有訂閱，創建新訂閱');
-          const vapidKey = '<%= VAPID_PUBLIC_KEY %>';
-          console.log('使用 VAPID 公鑰:', vapidKey ? vapidKey.substring(0, 20) + '...' : '未找到 VAPID 公鑰');
-          if (!vapidKey) {
-            console.error('VAPID 公鑰未正確載入');
-            alert('推送功能初始化失敗，請重新載入頁面');
-            return;
-          }
-          registration.pushManager.subscribe({
-            userVisibleOnly: true,
-            applicationServerKey: urlBase64ToUint8Array(vapidKey)
-          }).then(subscription => {
-            console.log('新推送訂閱創建成功:', subscription.endpoint);
-            saveSubscriptionToServer(subscription);
-          }).catch(err => {
-            console.error('創建推送訂閱失敗:', err);
-            alert('創建推送訂閱失敗: ' + err.message);
-          });
-        }).catch(err => {
-          console.error('獲取現有訂閱失敗:', err);
-          alert('獲取推送訂閱失敗，請重試或檢查瀏覽器設置。');
-        });
-      }).catch(err => {
-        console.error('Service Worker 未準備就緒:', err);
-        alert('Service Worker 初始化失敗，請重新載入頁面');
-      });
-    }
-
-    function saveSubscriptionToServer(subscription) {
-      console.log('儲存訂閱到伺服器:', subscription.endpoint);
-      fetch('/subscribe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Cookie': document.cookie },
-        body: JSON.stringify(subscription)
-      }).then(response => {
-        console.log('訂閱儲存請求響應狀態:', response.status);
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-        return response.json();
-      }).then(data => {
-        console.log('訂閱儲存響應數據:', data);
-        if (data.success) {
-          console.log('推送訂閱儲存成功');
-          alert('推送通知訂閱成功！您將收到任務到期提醒。');
-        } else {
-          console.error('推送訂閱儲存失敗:', data.error);
-          alert('推送訂閱儲存失敗: ' + (data.error || '未知錯誤'));
-        }
-      }).catch(err => {
-        console.error('推送訂閱儲存錯誤:', err);
-        alert('推送訂閱儲存失敗: ' + err.message + '\n請檢查網路連線或重新載入頁面。');
-      });
-    }
-
-    function formatDateTime(date, time) {
-      const result = moment(`${date} ${time}`, 'YYYY-MM-DD HH:mm').tz('Asia/Hong_Kong').format('YYYY-MM-DDTHH:mm:ssZ');
-      console.log(`格式化日期時間: ${date} ${time} -> ${result}`);
-      return result;
-    }
-
-    function formatDisplayDateTime(datetime) {
-      const formatted = moment(datetime).tz('Asia/Hong_Kong').format('YYYY-MM-DD HH:mm');
-      console.log(`格式化顯示時間: ${datetime} -> ${formatted}`);
-      return formatted;
-    }
-
-    function loadTasks() {
-      fetch('/taskmanager/tasks', { headers: { 'Cookie': document.cookie } })
-        .then(response => {
-          console.log('載入任務請求響應狀態:', response.status);
-          return response.json();
-        })
-        .then(data => {
-          console.log('從伺服器接收的任務:', data);
-          tasks = data;
-          displayTaskList();
-          renderCalendar();
-          checkUpcomingTasks();
-        })
-        .catch(err => console.error('載入任務錯誤:', err));
-    }
-
-    function displayTaskList() {
-      const taskList = document.getElementById('taskList');
-      taskList.innerHTML = '';
-      tasks.forEach(task => {
-        const li = document.createElement('li');
-        li.className = 'list-group-item d-flex justify-content-between align-items-center';
-        li.innerHTML = `
-          <div>
-            <strong>${task.title}</strong> - ${task.description || '無描述'} (到期: ${formatDisplayDateTime(task.due_date)})
-          </div>
-          <div>
-            <button class="btn btn-sm btn-warning mx-1" onclick="editTask(${task.id})">編輯</button>
-            <button class="btn btn-sm btn-danger" onclick="deleteTask(${task.id})">刪除</button>
-          </div>
-        `;
-        taskList.appendChild(li);
-      });
-    }
-
-    function renderCalendar() {
-      const calendarEl = document.getElementById('calendar');
-      const calendar = new FullCalendar.Calendar(calendarEl, {
-        initialView: 'dayGridMonth',
-        timeZone: 'Asia/Hong_Kong',
-        events: tasks.map(task => ({
-          title: task.title,
-          start: moment(task.due_date).tz('Asia/Hong_Kong').format('YYYY-MM-DDTHH:mm:ssZ'),
-          allDay: false,
-          backgroundColor: '#FFFF00',
-          borderColor: '#FFFF00',
-          textColor: '#000000'
-        })),
-        eventTimeFormat: {
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: false
-        }
-      });
-      calendar.render();
-    }
-
-    function saveTask() {
-      const id = document.getElementById('taskId').value;
-      const title = document.getElementById('title').value.trim();
-      const description = document.getElementById('description').value.trim();
-      const dueDate = document.getElementById('dueDate').value;
-      const dueTime = document.getElementById('dueTime').value;
-
-      if (!title || !dueDate || !dueTime) {
-        alert('請填寫標題、到期日期和到期時間！');
-        return;
-      }
-
-      const dueDateTime = formatDateTime(dueDate, dueTime);
-      console.log('儲存任務數據:', { id, title, description, dueDate, dueTime, dueDateTime });
-      const method = id ? 'PUT' : 'POST';
-      const url = id ? `/taskmanager/edit/${id}` : '/taskmanager/add';
-
-      fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json', 'Cookie': document.cookie },
-        body: JSON.stringify({ title, description, due_date: dueDateTime })
-      })
-      .then(response => {
-        console.log('儲存任務響應狀態:', response.status);
-        return response.json();
-      })
-      .then(data => {
-        if (data.success) {
-          console.log('任務儲存成功:', data);
-          loadTasks();
-          resetForm();
-          // 在任務新增後重新檢查推送訂閱
-          checkNotificationPermission();
-        } else {
-          console.error('任務儲存失敗:', data.error);
-          alert(data.error || '儲存任務失敗');
-        }
-      })
-      .catch(err => console.error('儲存任務錯誤:', err));
-    }
-
-    function editTask(id) {
-      const task = tasks.find(t => t.id === id);
-      if (task) {
-        document.getElementById('taskId').value = task.id;
-        document.getElementById('title').value = task.title;
-        document.getElementById('description').value = task.description || '';
-        const dueDateTime = moment(task.due_date).tz('Asia/Hong_Kong');
-        document.getElementById('dueDate').value = dueDateTime.format('YYYY-MM-DD');
-        document.getElementById('dueTime').value = dueDateTime.format('HH:mm');
-      }
-    }
-
-    function deleteTask(id) {
-      if (confirm('確定要刪除此任務嗎？')) {
-        fetch(`/taskmanager/delete/${id}`, {
-          method: 'DELETE',
-          headers: { 'Cookie': document.cookie }
-        })
-        .then(response => {
-          console.log('刪除任務響應狀態:', response.status);
-          return response.json();
-        })
-        .then(data => {
-          if (data.success) {
-            console.log('任務刪除成功:', id);
-            loadTasks();
-          } else {
-            console.error('任務刪除失敗:', data.error);
-            alert(data.error || '刪除任務失敗');
-          }
-        })
-        .catch(err => console.error('刪除任務錯誤:', err));
-      }
-    }
-
-    function resetForm() {
-      document.getElementById('taskForm').reset();
-      document.getElementById('taskId').value = '';
-    }
-
-    function checkUpcomingTasks() {
-      tasks.forEach(task => {
-        const dueDateTime = moment(task.due_date).tz('Asia/Hong_Kong');
-        const now = moment().tz('Asia/Hong_Kong');
-        const diffMinutes = dueDateTime.diff(now, 'minutes');
-        if (diffMinutes > 0 && diffMinutes <= 5) {
-          console.log('即將到期任務:', task.title, '剩餘分鐘:', diffMinutes);
-          alert(`任務 "${task.title}" 將於 ${dueDateTime.format('YYYY-MM-DD HH:mm')} 到期！`);
-        }
-      });
-    }
-
-    document.addEventListener('DOMContentLoaded', () => {
-      loadTasks();
-      checkNotificationPermission();
-      setInterval(checkUpcomingTasks, 60 * 1000);
-    });
-  </script>
 </body>
 </html>

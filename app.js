@@ -50,6 +50,7 @@ app.post('/register', async (req, res) => {
 app.get('/login', (req, res) => res.render('login', { error: null }));
 app.post('/login', async (req, res) => {
   const { username, password } = req.body;
+  console.log('登入請求:', { username, password: '[隱藏]' });
   try {
     const token = await userService.loginUser(username, password);
     res.cookie('token', token, { httpOnly: true });
@@ -57,11 +58,6 @@ app.post('/login', async (req, res) => {
   } catch (err) {
     res.render('login', { error: err.message });
   }
-});
-
-app.get('/logout', (req, res) => {
-  res.clearCookie('token');
-  res.redirect('/');
 });
 
 const verifyToken = async (req, res, next) => {
@@ -208,24 +204,56 @@ setInterval(async () => {
   } catch (err) {
     console.error('Task Notification Query Error:', err.message);
   }
-}, 30 * 1000);
+}, 60 * 1000); // Adjusted to 60 seconds as per previous suggestion
 
 app.get('/taskmanager/tasks', verifyToken, async (req, res) => {
   try {
     const tasks = await taskService.getTasks(req.user.id);
-    res.json(tasks);
+    console.log('返回任務列表:', { userId: req.user.id, tasks });
+    res.json(tasks || []); // Ensure array is returned
   } catch (err) {
+    console.error('取得任務失敗:', err.message);
     res.status(500).json({ error: '取得任務失敗' });
   }
 });
 
 app.post('/taskmanager/add', verifyToken, async (req, res) => {
   const { title, description, due_date } = req.body;
+
+  if (!title || !due_date) {
+    return res.status(400).json({
+      success: false,
+      error: '請提供標題和到期時間'
+    });
+  }
+
   try {
-    const taskId = await taskService.addTask(req.user.id, title, description, due_date);
-    res.json({ success: true, taskId });
+    const parsedDate = moment(due_date);
+    if (!parsedDate.isValid() || parsedDate.isBefore(moment())) {
+      return res.status(400).json({
+        success: false,
+        error: '無效的日期時間格式或過期時間'
+      });
+    }
+
+    const normalizedDate = parsedDate.format('YYYY-MM-DDTHH:mm:ss.SSSZ');
+    const taskId = await taskService.addTask(
+      req.user.id,
+      title.trim(),
+      (description || '').trim(),
+      normalizedDate
+    );
+
+    res.json({
+      success: true,
+      taskId
+    });
+
   } catch (err) {
-    res.status(400).json({ error: err.message });
+    res.status(400).json({
+      success: false,
+      error: err.message || '創建任務失敗'
+    });
   }
 });
 

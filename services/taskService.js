@@ -2,11 +2,17 @@ const { query } = require('../db');
 const moment = require('moment-timezone');
 
 async function getTasks(userId) {
-  const results = await query('SELECT * FROM tasks WHERE user_id = ?', [userId]);
-  return results.map(task => ({
-    ...task,
-    due_date: moment(task.due_date).tz('Asia/Hong_Kong').format('YYYY-MM-DDTHH:mm:ssZ')
-  }));
+  try {
+    const results = await query('SELECT * FROM tasks WHERE user_id = ?', [userId]);
+    console.log('查詢任務結果:', { userId, results });
+    return results.map(task => ({
+      ...task,
+      due_date: moment(task.due_date).tz('Asia/Hong_Kong').format('YYYY-MM-DDTHH:mm:ssZ')
+    })) || [];
+  } catch (err) {
+    console.error('查詢任務錯誤:', err.message);
+    return [];
+  }
 }
 
 async function addTask(userId, title, description, dueDate) {
@@ -15,6 +21,9 @@ async function addTask(userId, title, description, dueDate) {
   }
   if (!moment(dueDate, moment.ISO_8601, true).isValid()) {
     throw new Error('無效的到期日期格式');
+  }
+  if (moment(dueDate).isBefore(moment())) {
+    throw new Error('到期日期必須是未來時間');
   }
   const formattedDueDate = moment.tz(dueDate, 'Asia/Hong_Kong').format('YYYY-MM-DD HH:mm:ss');
   const [result] = await query(
@@ -31,6 +40,9 @@ async function editTask(userId, taskId, title, description, dueDate) {
   }
   if (!moment(dueDate, moment.ISO_8601, true).isValid()) {
     throw new Error('無效的到期日期格式');
+  }
+  if (moment(dueDate).isBefore(moment())) {
+    throw new Error('到期日期必須是未來時間');
   }
   const formattedDueDate = moment.tz(dueDate, 'Asia/Hong_Kong').format('YYYY-MM-DD HH:mm:ss');
   await query(
