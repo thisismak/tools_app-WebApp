@@ -14,17 +14,27 @@ async function registerUser(username, email, password) {
 }
 
 async function loginUser(username, password) {
-  const [results] = await query('SELECT * FROM users WHERE username = ?', [username]);
-  if (results.length === 0) {
-    throw new Error('用戶名或密碼錯誤');
+  try {
+    const results = await query('SELECT * FROM users WHERE username = ?', [username]);
+    console.log('查詢結果:', results); // 添加日誌
+    if (!results || results.length === 0) {
+      throw new Error('用戶名或密碼錯誤');
+    }
+    const user = results[0];
+    if (!user || !user.password) {
+      throw new Error('用戶數據不完整');
+    }
+    const match = await bcrypt.compare(password, user.password);
+    if (!match) {
+      throw new Error('用戶名或密碼錯誤');
+    }
+    const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: '24h' });
+    console.log('用戶登入成功:', username);
+    return token;
+  } catch (err) {
+    console.error('loginUser Error:', err.message);
+    throw err;
   }
-  const match = await bcrypt.compare(password, results[0].password);
-  if (!match) {
-    throw new Error('用戶名或密碼錯誤');
-  }
-  const token = jwt.sign({ id: results[0].id }, process.env.JWT_SECRET, { expiresIn: '24h' });
-  console.log('用戶登入成功:', username);
-  return token;
 }
 
 async function getUserById(id) {
