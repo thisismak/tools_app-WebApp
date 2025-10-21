@@ -1,4 +1,4 @@
-const PRECACHE = 'precache-v2';
+const PRECACHE = 'precache-v3'; // 更新快取版本
 const RUNTIME = 'runtime';
 const PRECACHE_URLS = [
   '/',
@@ -6,12 +6,12 @@ const PRECACHE_URLS = [
   '/images/icon-192x192.png',
   '/images/icon-512x512.png',
   '/offline.html',
+  '/js/taskmanager.js',
   'https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css',
-  'https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/main.min.css',
+  'https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/main.css',
   'https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js',
-  'https://cdnjs.cloudflare.com/ajax/libs/moment-timezone/0.5.34/moment-timezone-with-data.min.js',
-  '/js/taskmanager.js'
+  'https://cdnjs.cloudflare.com/ajax/libs/moment-timezone/0.5.45/moment-timezone-with-data.min.js'
 ];
 
 self.addEventListener('install', event => {

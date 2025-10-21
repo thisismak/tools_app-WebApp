@@ -79,8 +79,10 @@ const verifyToken = async (req, res, next) => {
 app.get('/dashboard', verifyToken, async (req, res) => {
   try {
     const user = await userService.getUserById(req.user.id);
+    console.log('載入 dashboard:', { userId: req.user.id, username: user.username });
     res.render('dashboard', { username: user.username });
   } catch (err) {
+    console.error('載入 dashboard 錯誤:', { userId: req.user.id, error: err.message, stack: err.stack });
     res.render('dashboard', { username: '未知' });
   }
 });

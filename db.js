@@ -16,10 +16,11 @@ const pool = mysql.createPool({
 
 async function query(sql, params) {
   try {
-    const [results] = await pool.query(sql, params);
-    return results;
+    const [results, fields] = await pool.query(sql, params);
+    console.log('SQL 查詢成功:', { sql, params, results });
+    return results; // 對於 INSERT，返回 { insertId, affectedRows, ... }
   } catch (err) {
-    console.error('Query Error:', err.message);
+    console.error('Query Error:', { sql, params, error: err.message, stack: err.stack });
     throw err;
   }
 }
@@ -29,11 +30,9 @@ async function initializeDatabase() {
     const connection = await pool.getConnection();
     const sql = await fs.readFile('init.sql', 'utf8');
     const statements = sql.split(';').map(s => s.trim()).filter(s => s.length > 0);
-    
     for (const statement of statements) {
       await connection.query(statement);
     }
-    
     console.log('Database initialized successfully');
     connection.release();
   } catch (err) {

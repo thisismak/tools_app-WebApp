@@ -2,6 +2,20 @@ const { query } = require('../db');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
+async function getUserById(id) {
+  try {
+    const results = await query('SELECT * FROM users WHERE id = ?', [id]);
+    console.log('getUserById 查詢結果:', { id, results });
+    if (!results || results.length === 0) {
+      throw new Error('用戶不存在');
+    }
+    return results[0];
+  } catch (err) {
+    console.error('getUserById 錯誤:', { id, error: err.message, stack: err.stack });
+    throw err;
+  }
+}
+
 async function registerUser(username, email, password) {
   const [existing] = await query('SELECT * FROM users WHERE email = ?', [email]);
   if (existing.length > 0) {

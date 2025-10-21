@@ -237,7 +237,6 @@ function saveTask() {
     return;
   }
 
-  // Validate date and time format
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate) || !/^\d{2}:\d{2}$/.test(dueTime)) {
     alert('請輸入有效的日期（YYYY-MM-DD）和時間（HH:mm）格式！');
     return;
@@ -261,7 +260,8 @@ function saveTask() {
     fetch(url, {
       method,
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Cookie': document.cookie // 確保帶上 JWT
       },
       credentials: 'include',
       body: JSON.stringify(payload)
@@ -269,8 +269,8 @@ function saveTask() {
     .then(response => {
       console.log('儲存任務響應狀態:', response.status, response.statusText);
       if (!response.ok) {
-        return response.text().then(text => {
-          throw new Error(`HTTP ${response.status}: ${text}`);
+        return response.json().then(data => {
+          throw new Error(`HTTP ${response.status}: ${data.error || response.statusText}`);
         });
       }
       return response.json();
@@ -288,11 +288,11 @@ function saveTask() {
       alert('任務已儲存！');
     })
     .catch(err => {
-      console.error('儲存任務錯誤:', err);
-      alert('儲存任務失敗: ' + (err.message || '未知錯誤'));
+      console.error('儲存任務錯誤:', err.message, err.stack);
+      alert('儲存任務失敗: ' + err.message);
     });
   } catch (err) {
-    console.error('請求準備失敗:', err);
+    console.error('請求準備失敗:', err.message, err.stack);
     alert('請求準備失敗: ' + err.message);
   }
 }

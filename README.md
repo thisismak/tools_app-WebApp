@@ -409,6 +409,10 @@ stress-ng --vm 100 --vm-bytes 100% --timeout 600s --metrics-brief
 
 # 故障處理需知
 ## 重啟網站服務方法
+sudo truncate -s 0 /var/log/nginx/access.log
+sudo truncate -s 0 /var/log/nginx/error.log
+pm2 flush tools_app-webapp
+
 pm2 restart tools_app-webapp
 systemctl restart nginx
 
