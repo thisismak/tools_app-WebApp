@@ -42,7 +42,7 @@ async function loginUser(username, password) {
     if (!match) {
       throw new Error('用戶名或密碼錯誤');
     }
-    const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: '24h' });
+    const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: '30d' });
     console.log('用戶登入成功:', username);
     return token;
   } catch (err) {

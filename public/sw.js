@@ -1,4 +1,4 @@
-const PRECACHE = 'precache-v3'; // 更新快取版本
+const PRECACHE = 'precache-v4'; // 更新快取版本
 const RUNTIME = 'runtime';
 const PRECACHE_URLS = [
   '/',

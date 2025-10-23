@@ -301,6 +301,12 @@ app.delete('/taskmanager/delete/:id', verifyToken, async (req, res) => {
   }
 });
 
+app.get('/logout', (req, res) => {
+  console.log('處理登出請求');
+  res.clearCookie('token');
+  res.redirect('/login');
+});
+
 app.use((err, req, res, next) => {
   console.error('Global Error:', err.message);
   res.status(500).json({ success: false, error: '伺服器內部錯誤' });
