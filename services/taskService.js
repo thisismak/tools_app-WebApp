@@ -74,11 +74,12 @@ async function deleteTask(userId, taskId) {
 
 async function checkUpcomingTasks() {
   const now = moment().tz('Asia/Hong_Kong');
+  const thirtyDaysAgo = now.clone().subtract(30, 'days'); // 修改：檢查前 30 天
   const inOneMinute = now.clone().add(1, 'minutes');
   try {
     const results = await query(
       'SELECT t.*, ps.subscription FROM tasks t JOIN push_subscriptions ps ON t.user_id = ps.user_id WHERE t.due_date BETWEEN ? AND ? AND t.notified = FALSE',
-      [now.format('YYYY-MM-DD HH:mm:ss'), inOneMinute.format('YYYY-MM-DD HH:mm:ss')]
+      [thirtyDaysAgo.format('YYYY-MM-DD HH:mm:ss'), inOneMinute.format('YYYY-MM-DD HH:mm:ss')]
     );
     return results.map(task => ({
       ...task,
