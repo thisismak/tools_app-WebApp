@@ -22,7 +22,7 @@ async function registerUser(username, email, password) {
     throw new Error('電郵地址已被使用');
   }
   const hashedPassword = await bcrypt.hash(password, 10);
-  await query('INSERT INTO users (username, email, password) VALUES (?, ?, ?)', 
+  await query('INSERT INTO users (username, email, password) VALUES (?, ?, ?)',
     [username, email, hashedPassword]);
   console.log('用戶註冊成功:', { username, email });
 }
@@ -30,7 +30,7 @@ async function registerUser(username, email, password) {
 async function loginUser(username, password) {
   try {
     const results = await query('SELECT * FROM users WHERE username = ?', [username]);
-    console.log('查詢結果:', results); // 添加日誌
+    console.log('查詢結果:', results);
     if (!results || results.length === 0) {
       throw new Error('用戶名或密碼錯誤');
     }
@@ -49,14 +49,6 @@ async function loginUser(username, password) {
     console.error('loginUser Error:', err.message);
     throw err;
   }
-}
-
-async function getUserById(id) {
-  const [results] = await query('SELECT * FROM users WHERE id = ?', [id]);
-  if (results.length === 0) {
-    throw new Error('用戶不存在');
-  }
-  return results[0];
 }
 
 module.exports = { registerUser, loginUser, getUserById };

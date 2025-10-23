@@ -1,5 +1,4 @@
-const PRECACHE = 'precache-v4'; // 更新快取版本
-const RUNTIME = 'runtime';
+const PRECACHE = 'precache-v4';
 const PRECACHE_URLS = [
   '/',
   '/css/style.css',
@@ -29,7 +28,7 @@ self.addEventListener('install', event => {
 
 self.addEventListener('activate', event => {
   console.log('Service Worker 啟動中');
-  const currentCaches = [PRECACHE, RUNTIME];
+  const currentCaches = [PRECACHE];
   event.waitUntil(
     caches.keys()
       .then(cacheNames => cacheNames.filter(cacheName => !currentCaches.includes(cacheName)))
@@ -44,75 +43,39 @@ self.addEventListener('activate', event => {
   );
 });
 
-async function putInCache(request, response) {
-  if (!response || !response.ok) {
-    console.warn('無法快取無效響應:', request.url, '狀態:', response?.status, response?.statusText);
-    return;
-  }
-  try {
-    const cache = await caches.open(RUNTIME);
-    const clonedResponse = response.clone();
-    await cache.put(request, clonedResponse);
-    console.log('快取成功:', request.url);
-  } catch (err) {
-    console.error('快取 put 失敗:', request.url, err);
-  }
-}
-
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
-  // Skip non-HTTP/HTTPS requests (e.g., chrome-extension://)
   if (!url.protocol.startsWith('http')) {
     console.log('跳過非 HTTP 請求:', url.href);
     return;
   }
-  // Handle API requests with network-only strategy
-  if (url.pathname.startsWith('/dictation/') || url.pathname.startsWith('/taskmanager/')) {
-    console.log('API 請求，使用 network-only:', url.pathname);
+  if (PRECACHE_URLS.includes(url.pathname) || PRECACHE_URLS.includes(url.href)) {
+    console.log('從快取提供靜態資源:', url.href);
+    event.respondWith(
+      caches.match(event.request)
+        .then(cachedResponse => {
+          if (cachedResponse) {
+            return cachedResponse;
+          }
+          console.log('從網絡獲取靜態資源:', url.href);
+          return fetch(event.request);
+        })
+        .catch(err => {
+          console.error('靜態資源快取失敗:', url.href, err);
+          return caches.match('/offline.html')
+            .then(offlineResponse => {
+              if (offlineResponse) {
+                console.log('提供離線頁面:', url.href);
+                return offlineResponse;
+              }
+              throw new Error('無離線頁面可用');
+            });
+        })
+    );
+  } else {
+    console.log('動態請求，使用 network-only:', url.pathname);
     event.respondWith(fetch(event.request));
-    return;
   }
-  event.respondWith(
-    caches.match(event.request)
-      .then(cachedResponse => {
-        if (cachedResponse) {
-          console.log('從快取提供:', event.request.url);
-          return cachedResponse;
-        }
-        return fetch(event.request)
-          .then(response => {
-            console.log('從網絡獲取:', event.request.url);
-            event.waitUntil(putInCache(event.request, response));
-            return response.clone();
-          })
-          .catch(err => {
-            console.error('網絡請求失敗:', event.request.url, err);
-            if (event.request.url.includes('main.min.css')) {
-              console.warn('FullCalendar CSS 載入失敗，提供空響應作為回退');
-              return new Response('', {
-                status: 200,
-                statusText: 'OK',
-                headers: { 'Content-Type': 'text/css' }
-              });
-            }
-            return caches.match('/offline.html')
-              .then(offlineResponse => {
-                if (offlineResponse) {
-                  console.log('提供離線頁面:', event.request.url);
-                  return offlineResponse;
-                }
-                throw new Error('無離線頁面可用');
-              });
-          });
-      })
-      .catch(err => {
-        console.error('快取匹配錯誤:', event.request.url, err);
-        return new Response('服務不可用，請檢查網絡連線', {
-          status: 503,
-          statusText: 'Service Unavailable'
-        });
-      })
-  );
 });
 
 self.addEventListener('push', event => {
