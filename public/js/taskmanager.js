@@ -57,6 +57,7 @@ function subscribeToPush() {
       console.log('無現有訂閱，創建新訂閱');
       const vapidKey = document.querySelector('script[data-vapid-key]')?.dataset.vapidKey;
       console.log('使用 VAPID 公鑰:', vapidKey ? vapidKey.substring(0, 20) + '...' : '未找到 VAPID 公鑰');
+      console.log('嘗試訂閱推送，VAPID 公鑰是否有效:', !!vapidKey);
       if (!vapidKey) {
         console.error('VAPID 公鑰未正確載入');
         alert('推送功能初始化失敗，請重新載入頁面');
@@ -84,6 +85,7 @@ function subscribeToPush() {
 
 function saveSubscriptionToServer(subscription) {
   console.log('儲存訂閱到伺服器:', subscription?.endpoint);
+  console.log('發送訂閱請求，包含 Cookie:', document.cookie);
   fetch('/subscribe', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Cookie': document.cookie },
@@ -177,14 +179,14 @@ function displayTaskList() {
     const li = document.createElement('li');
     li.className = 'list-group-item d-flex justify-content-between align-items-center';
     li.innerHTML = `
-      <div>
-        <strong>${escapeHtml(String(task.title || ''))}</strong> - ${escapeHtml(String(task.description || '無描述'))} (到期: ${formatDisplayDateTime(task.due_date)})
-      </div>
-      <div>
-        <button class="btn btn-sm btn-warning mx-1" onclick="editTask(${task.id})">編輯</button>
-        <button class="btn btn-sm btn-danger" onclick="deleteTask(${task.id})">刪除</button>
-      </div>
-    `;
+           <div>
+             <strong>${escapeHtml(String(task.title || ''))}</strong> - ${escapeHtml(String(task.description || '無描述'))} (到期: ${formatDisplayDateTime(task.due_date)})
+           </div>
+           <div>
+             <button class="btn btn-sm btn-warning mx-1" onclick="editTask(${task.id})">編輯</button>
+             <button class="btn btn-sm btn-danger" onclick="deleteTask(${task.id})">刪除</button>
+           </div>
+         `;
     taskList.appendChild(li);
   });
 }
@@ -266,31 +268,31 @@ function saveTask() {
       credentials: 'include',
       body: JSON.stringify(payload)
     })
-    .then(response => {
-      console.log('儲存任務響應狀態:', response.status, response.statusText);
-      if (!response.ok) {
-        return response.json().then(data => {
-          throw new Error(`HTTP ${response.status}: ${data.error || response.statusText}`);
-        });
-      }
-      return response.json();
-    })
-    .then(data => {
-      console.log('儲存任務響應數據:', data);
-      if (!data || typeof data !== 'object') {
-        throw new Error('無效的響應數據');
-      }
-      if (!data.success) {
-        throw new Error(data.error || '儲存失敗');
-      }
-      loadTasks();
-      resetForm();
-      alert('任務已儲存！');
-    })
-    .catch(err => {
-      console.error('儲存任務錯誤:', err.message, err.stack);
-      alert('儲存任務失敗: ' + err.message);
-    });
+      .then(response => {
+        console.log('儲存任務響應狀態:', response.status, response.statusText);
+        if (!response.ok) {
+          return response.json().then(data => {
+            throw new Error(`HTTP ${response.status}: ${data.error || response.statusText}`);
+          });
+        }
+        return response.json();
+      })
+      .then(data => {
+        console.log('儲存任務響應數據:', data);
+        if (!data || typeof data !== 'object') {
+          throw new Error('無效的響應數據');
+        }
+        if (!data.success) {
+          throw new Error(data.error || '儲存失敗');
+        }
+        loadTasks();
+        resetForm();
+        alert('任務已儲存！');
+      })
+      .catch(err => {
+        console.error('儲存任務錯誤:', err.message, err.stack);
+        alert('儲存任務失敗: ' + err.message);
+      });
   } catch (err) {
     console.error('請求準備失敗:', err.message, err.stack);
     alert('請求準備失敗: ' + err.message);
@@ -418,6 +420,8 @@ window.resetForm = resetForm;
 // 在這裡綁定 DOMContentLoaded 事件，確保頁面元素已載入
 document.addEventListener('DOMContentLoaded', function () {
   console.log('DOMContentLoaded 事件觸發，FullCalendar 狀態:', typeof FullCalendar);
+  console.log('初始化時檢查通知權限');
+  checkNotificationPermission();
   try {
     if (typeof loadTasks !== 'function') {
       console.warn('loadTasks 未定義，將略過載入。');

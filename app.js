@@ -166,6 +166,7 @@ app.post('/subscribe', verifyToken, async (req, res) => {
     await subscriptionService.saveSubscription(req.user.id, req.body);
     res.json({ success: true });
   } catch (err) {
+    console.error('訂閱路由錯誤:', { userId: req.user?.id, error: err.message, stack: err.stack });
     res.status(500).json({ success: false, error: '儲存訂閱失敗' });
   }
 });

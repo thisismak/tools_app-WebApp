@@ -18,7 +18,7 @@ async function query(sql, params) {
   try {
     const [results, fields] = await pool.query(sql, params);
     console.log('SQL 查詢成功:', { sql, params, results });
-    return results; // 對於 INSERT，返回 { insertId, affectedRows, ... }
+    return sql.trim().toUpperCase().startsWith('SELECT') ? (Array.isArray(results) ? results : []) : results;
   } catch (err) {
     console.error('Query Error:', { sql, params, error: err.message, stack: err.stack });
     throw err;
