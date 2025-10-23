@@ -197,12 +197,15 @@ setInterval(async () => {
         icon: '/images/icon-192x192.png',
         url: '/taskmanager'
       };
-      try {
-        await webpush.sendNotification(task.subscription, JSON.stringify(payload));
-        await taskService.markTaskAsNotified(task.id);
-      } catch (err) {
-        console.error('Push Notification Error, 任務ID:', task.id, '用戶ID:', task.user_id, '訂閱:', task.subscription.endpoint, '錯誤:', err.message);
+      for (const subscription of task.subscriptions) {
+        try {
+          await webpush.sendNotification(subscription, JSON.stringify(payload));
+          console.log('推送通知發送成功:', task.id, subscription.endpoint);
+        } catch (err) {
+          console.error('Push Notification Error, 任務ID:', task.id, '用戶ID:', task.user_id, '訂閱:', subscription.endpoint, '錯誤:', err.message);
+        }
       }
+      await taskService.markTaskAsNotified(task.id);
     }
   } catch (err) {
     console.error('Task Notification Query Error:', err.message);

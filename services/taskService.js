@@ -74,17 +74,27 @@ async function deleteTask(userId, taskId) {
 
 async function checkUpcomingTasks() {
   const now = moment().tz('Asia/Hong_Kong');
-  const thirtyDaysAgo = now.clone().subtract(30, 'days'); // 修改：檢查前 30 天
+  const thirtyDaysAgo = now.clone().subtract(30, 'days');
   const inOneMinute = now.clone().add(1, 'minutes');
   try {
     const results = await query(
       'SELECT t.*, ps.subscription FROM tasks t JOIN push_subscriptions ps ON t.user_id = ps.user_id WHERE t.due_date BETWEEN ? AND ? AND t.notified = FALSE',
       [thirtyDaysAgo.format('YYYY-MM-DD HH:mm:ss'), inOneMinute.format('YYYY-MM-DD HH:mm:ss')]
     );
-    return results.map(task => ({
-      ...task,
-      subscription: JSON.parse(task.subscription)
-    }));
+    // 按任務分組，確保每個任務對應所有訂閱
+    const tasksWithSubscriptions = [];
+    const taskMap = new Map();
+    results.forEach(row => {
+      const taskId = row.id;
+      if (!taskMap.has(taskId)) {
+        taskMap.set(taskId, {
+          ...row,
+          subscriptions: []
+        });
+      }
+      taskMap.get(taskId).subscriptions.push(JSON.parse(row.subscription));
+    });
+    return Array.from(taskMap.values());
   } catch (err) {
     console.error('checkUpcomingTasks 錯誤:', { error: err.message, stack: err.stack });
     throw err;
