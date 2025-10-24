@@ -5,13 +5,13 @@ const bodyParser = require('body-parser');
 const cookieParser = require('cookie-parser');
 const webpush = require('web-push');
 const moment = require('moment-timezone');
-
 const { initializeDatabase } = require('./db');
 const userService = require('./services/userService');
 const wordlistService = require('./services/wordlistService');
 const wordService = require('./services/wordService');
 const taskService = require('./services/taskService');
 const subscriptionService = require('./services/subscriptionService');
+
 
 process.env.TZ = 'Asia/Hong_Kong';
 
