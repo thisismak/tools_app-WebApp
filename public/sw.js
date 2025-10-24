@@ -49,6 +49,11 @@ self.addEventListener('fetch', event => {
     console.log('跳過非 HTTP 請求:', url.href);
     return;
   }
+  if (url.pathname.startsWith('/uploads/')) {
+    console.log('動態檔案請求，使用 network-only:', url.pathname);
+    event.respondWith(fetch(event.request));
+    return;
+  }
   if (PRECACHE_URLS.includes(url.pathname) || PRECACHE_URLS.includes(url.href)) {
     console.log('從快取提供靜態資源:', url.href);
     event.respondWith(

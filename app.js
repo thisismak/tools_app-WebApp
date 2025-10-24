@@ -11,11 +11,37 @@ const wordlistService = require('./services/wordlistService');
 const wordService = require('./services/wordService');
 const taskService = require('./services/taskService');
 const subscriptionService = require('./services/subscriptionService');
-
+const fileService = require('./services/fileService');
+const multer = require('multer');
+const path = require('path');
 
 process.env.TZ = 'Asia/Hong_Kong';
 
 const app = express();
+
+// 配置 Multer 檔案上傳
+const storage = multer.diskStorage({
+  destination: async (req, file, cb) => {
+    await fileService.ensureUploadDir();
+    cb(null, 'public/uploads/');
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, uniqueSuffix + '-' + file.originalname);
+  }
+});
+const upload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 限制檔案大小為 5MB
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['image/jpeg', 'image/png', 'application/pdf', 'text/plain'];
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('僅支援 JPEG、PNG、PDF 和純文本檔案'));
+    }
+  }
+});
 
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
@@ -302,6 +328,54 @@ app.delete('/taskmanager/delete/:id', verifyToken, async (req, res) => {
   } catch (err) {
     console.error('刪除任務錯誤:', err.message);
     res.status(500).json({ success: false, error: '刪除任務失敗' });
+  }
+});
+
+// 檔案管理路由
+app.get('/filemanager', verifyToken, async (req, res) => {
+  try {
+    const user = await userService.getUserById(req.user.id);
+    res.render('filemanager', { username: user ? user.username : '未知' });
+  } catch (err) {
+    console.error('載入檔案管理頁面錯誤:', err);
+    res.redirect('/dashboard');
+  }
+});
+
+app.get('/filemanager/files', verifyToken, async (req, res) => {
+  try {
+    const files = await fileService.getFiles(req.user.id);
+    res.json(files);
+  } catch (err) {
+    console.error('取得檔案列表失敗:', err);
+    res.status(500).json({ success: false, error: '取得檔案列表失敗' });
+  }
+});
+
+app.post('/filemanager/upload', verifyToken, upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, error: '請選擇一個檔案' });
+    }
+    const { customName, description } = req.body;
+    if (!customName) {
+      return res.status(400).json({ success: false, error: '請提供檔案名稱' });
+    }
+    await fileService.saveFile(req.user.id, req.file.filename, req.file.originalname, customName, description || '');
+    res.json({ success: true });
+  } catch (err) {
+    console.error('檔案上傳錯誤:', err);
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+app.delete('/filemanager/delete/:filename', verifyToken, async (req, res) => {
+  try {
+    await fileService.deleteFile(req.user.id, req.params.filename);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('刪除檔案錯誤:', err);
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
