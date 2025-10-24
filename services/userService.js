@@ -4,7 +4,7 @@ const jwt = require('jsonwebtoken');
 
 async function getUserById(id) {
   try {
-    const results = await query('SELECT * FROM users WHERE id = ?', [id]);
+    const results = await query('SELECT id, username, email, role FROM users WHERE id = ?', [id]);
     console.log('getUserById 查詢結果:', { id, results });
     if (!results || results.length === 0) {
       throw new Error('用戶不存在');
@@ -22,8 +22,8 @@ async function registerUser(username, email, password) {
     throw new Error('電郵地址已被使用');
   }
   const hashedPassword = await bcrypt.hash(password, 10);
-  await query('INSERT INTO users (username, email, password) VALUES (?, ?, ?)',
-    [username, email, hashedPassword]);
+  await query('INSERT INTO users (username, email, password, role) VALUES (?, ?, ?, ?)',
+    [username, email, hashedPassword, 'user']);
   console.log('用戶註冊成功:', { username, email });
 }
 
@@ -51,4 +51,15 @@ async function loginUser(username, password) {
   }
 }
 
-module.exports = { registerUser, loginUser, getUserById };
+async function getAllUsers() {
+  try {
+    const results = await query('SELECT id, username, email, role FROM users');
+    console.log('查詢所有用戶結果:', { results });
+    return results;
+  } catch (err) {
+    console.error('getAllUsers 錯誤:', { error: err.message, stack: err.stack });
+    throw err;
+  }
+}
+
+module.exports = { registerUser, loginUser, getUserById, getAllUsers };
