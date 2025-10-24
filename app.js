@@ -50,7 +50,7 @@ app.use(express.static('public'));
 app.set('view engine', 'ejs');
 
 webpush.setVapidDetails(
-  'mailto:your-email@example.com',
+  'mailto:support@mysandshome.com',
   process.env.VAPID_PUBLIC_KEY,
   process.env.VAPID_PRIVATE_KEY
 );
@@ -60,7 +60,20 @@ initializeDatabase().catch(err => {
   process.exit(1);
 });
 
-app.get('/', (req, res) => res.render('index'));
+// 首頁路由，傳遞網站名稱以確保與 index.ejs 一致
+app.get('/', (req, res) => {
+  res.render('index', { siteName: '技術人員內部網站' });
+});
+
+// robots.txt 路由
+app.get('/robots.txt', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'robots.txt'));
+});
+
+// sitemap.xml 路由
+app.get('/sitemap.xml', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'sitemap.xml'));
+});
 
 app.get('/register', (req, res) => res.render('register', { error: null }));
 app.post('/register', async (req, res) => {

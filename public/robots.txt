@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Allow: /login
+Allow: /register
+Disallow: /dashboard
+Disallow: /dictation
+Disallow: /taskmanager
+Disallow: /filemanager
+Sitemap: https://tools.mysandshome.com/sitemap.xml
