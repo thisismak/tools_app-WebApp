@@ -10,6 +10,14 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/moment-timezone/0.5.45/moment-timezone-with-data.min.js"></script>
   <title>檔案管理</title>
+  <style>
+    .thumbnail {
+      max-width: 50px;
+      max-height: 50px;
+      margin-right: 10px;
+      vertical-align: middle;
+    }
+  </style>
 </head>
 <body>
   <div class="container mt-5">
@@ -41,11 +49,41 @@
       <ul id="fileList" class="list-group"></ul>
     </div>
 
+    <!-- 編輯模態框 -->
+    <div class="modal fade" id="editFileModal" tabindex="-1" aria-labelledby="editFileModalLabel" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="editFileModalLabel">編輯檔案資訊</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="關閉"></button>
+          </div>
+          <div class="modal-body">
+            <form id="editFileForm">
+              <input type="hidden" id="editFilename">
+              <div class="mb-3">
+                <label for="editCustomName" class="form-label">檔案名稱</label>
+                <input type="text" id="editCustomName" class="form-control" required>
+              </div>
+              <div class="mb-3">
+                <label for="editDescription" class="form-label">檔案描述</label>
+                <textarea id="editDescription" class="form-control" rows="3"></textarea>
+              </div>
+            </form>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+            <button type="button" class="btn btn-primary" onclick="saveFileChanges()">儲存</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="text-center mt-3">
       <a href="/dashboard" class="btn btn-secondary">返回儀表板</a>
     </div>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script>
     // 載入檔案列表
     function loadFiles() {
@@ -64,14 +102,19 @@
           data.forEach(file => {
             const li = document.createElement('li');
             li.className = 'list-group-item d-flex justify-content-between align-items-center';
+            const isImage = file.mime_type === 'image/jpeg' || file.mime_type === 'image/png';
             li.innerHTML = `
               <div>
-                <a href="/uploads/${file.filename}" target="_blank" class="text-info">${file.custom_name || file.original_name}</a>
+                ${isImage ? `<img src="/uploads/${file.filename}" alt="${file.custom_name || file.original_name}" class="thumbnail">` : ''}
+                <a href="/Uploads/${file.filename}" target="_blank" class="text-info">${file.custom_name || file.original_name}</a>
                 <small class="d-block text-muted">原始檔案: ${file.original_name}</small>
                 <small class="d-block text-muted">描述: ${file.description || '無'}</small>
                 <small class="d-block text-muted">上傳時間: ${formatDisplayDateTime(file.uploaded_at)}</small>
               </div>
-              <button class="btn btn-sm btn-danger" onclick="deleteFile('${file.filename}')">刪除</button>
+              <div>
+                <button class="btn btn-sm btn-warning me-2" onclick="openEditModal('${file.filename}', '${file.custom_name}', '${file.description || ''}')">編輯</button>
+                <button class="btn btn-sm btn-danger" onclick="deleteFile('${file.filename}')">刪除</button>
+              </div>
             `;
             fileList.appendChild(li);
           });
@@ -85,6 +128,50 @@
     // 格式化顯示日期時間
     function formatDisplayDateTime(datetime) {
       return moment(datetime).tz('Asia/Hong_Kong').format('YYYY-MM-DD HH:mm');
+    }
+
+    // 開啟編輯模態框
+    function openEditModal(filename, customName, description) {
+      document.getElementById('editFilename').value = filename;
+      document.getElementById('editCustomName').value = customName;
+      document.getElementById('editDescription').value = description;
+      const modal = new bootstrap.Modal(document.getElementById('editFileModal'));
+      modal.show();
+    }
+
+    // 儲存檔案資訊變更
+    function saveFileChanges() {
+      const filename = document.getElementById('editFilename').value;
+      const customName = document.getElementById('editCustomName').value.trim();
+      const description = document.getElementById('editDescription').value.trim();
+      if (!customName) {
+        alert('請輸入檔案名稱！');
+        return;
+      }
+
+      fetch(`/filemanager/edit/${filename}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Cookie': document.cookie
+        },
+        body: JSON.stringify({ customName, description })
+      })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            alert('檔案資訊已更新！');
+            const modal = bootstrap.Modal.getInstance(document.getElementById('editFileModal'));
+            modal.hide();
+            loadFiles();
+          } else {
+            alert(data.error || '更新檔案資訊失敗');
+          }
+        })
+        .catch(err => {
+          console.error('更新檔案資訊錯誤:', err);
+          alert('更新檔案資訊失敗: ' + err.message);
+        });
     }
 
     // 上傳檔案

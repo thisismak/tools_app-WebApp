@@ -32,11 +32,32 @@ async function getFiles(userId) {
       'SELECT filename, original_name, custom_name, description, uploaded_at FROM files WHERE user_id = ?',
       [userId]
     );
-    console.log('查詢檔案結果:', { userId, results });
-    return results || [];
+    // 推斷 MIME 類型
+    const files = results.map(file => ({
+      ...file,
+      mime_type: inferMimeType(file.original_name)
+    }));
+    console.log('查詢檔案結果:', { userId, files });
+    return files || [];
   } catch (err) {
     console.error('查詢檔案失敗:', err);
     throw new Error('查詢檔案失敗');
+  }
+}
+
+async function editFile(userId, filename, customName, description) {
+  try {
+    const result = await query(
+      'UPDATE files SET custom_name = ?, description = ? WHERE user_id = ? AND filename = ?',
+      [customName, description, userId, filename]
+    );
+    if (result.affectedRows === 0) {
+      throw new Error('檔案不存在或無權限編輯');
+    }
+    console.log('檔案資訊更新成功:', { userId, filename, customName });
+  } catch (err) {
+    console.error('更新檔案資訊失敗:', err);
+    throw new Error('更新檔案資訊失敗');
   }
 }
 
@@ -52,4 +73,21 @@ async function deleteFile(userId, filename) {
   }
 }
 
-module.exports = { ensureUploadDir, saveFile, getFiles, deleteFile };
+function inferMimeType(originalName) {
+  const ext = path.extname(originalName).toLowerCase();
+  switch (ext) {
+    case '.jpg':
+    case '.jpeg':
+      return 'image/jpeg';
+    case '.png':
+      return 'image/png';
+    case '.pdf':
+      return 'application/pdf';
+    case '.txt':
+      return 'text/plain';
+    default:
+      return 'application/octet-stream';
+  }
+}
+
+module.exports = { ensureUploadDir, saveFile, getFiles, editFile, deleteFile };

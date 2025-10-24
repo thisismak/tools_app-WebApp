@@ -369,6 +369,20 @@ app.post('/filemanager/upload', verifyToken, upload.single('file'), async (req, 
   }
 });
 
+app.put('/filemanager/edit/:filename', verifyToken, async (req, res) => {
+  try {
+    const { customName, description } = req.body;
+    if (!customName) {
+      return res.status(400).json({ success: false, error: '請提供檔案名稱' });
+    }
+    await fileService.editFile(req.user.id, req.params.filename, customName, description || '');
+    res.json({ success: true });
+  } catch (err) {
+    console.error('編輯檔案資訊錯誤:', err);
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
 app.delete('/filemanager/delete/:filename', verifyToken, async (req, res) => {
   try {
     await fileService.deleteFile(req.user.id, req.params.filename);
