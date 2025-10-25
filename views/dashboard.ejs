@@ -15,7 +15,10 @@
     <div class="text-center mt-3">
       <a href="/dictation" class="btn btn-primary">背默英文生字</a>
       <a href="/taskmanager" class="btn btn-primary">任務管理</a>
-      <a href="/filemanager" class="btn btn-primary">檔案管理</a> <!-- 新增按鈕 -->
+      <a href="/filemanager" class="btn btn-primary">檔案管理</a>
+      <% if (role === 'admin') { %>
+        <a href="/admin" class="btn btn-primary">後台管理</a>
+      <% } %>
       <a href="/logout" class="btn btn-secondary">登出</a>
     </div>
   </div>

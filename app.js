@@ -402,15 +402,17 @@ app.get('/admin/logs', verifyToken, verifyAdmin, async (req, res) => {
   }
 });
 
-// 現有路由
 app.get('/dashboard', verifyToken, async (req, res) => {
   try {
     const user = await userService.getUserById(req.user.id);
-    console.log('載入 dashboard:', { userId: req.user.id, username: user ? user.username : '未找到用戶' });
-    res.render('dashboard', { username: user ? user.username : '未知' });
+    console.log('載入 dashboard:', { userId: req.user.id, username: user ? user.username : '未找到用戶', role: user ? user.role : 'user' });
+    res.render('dashboard', { 
+      username: user ? user.username : '未知', 
+      role: user ? user.role : 'user'  // 新增這行：傳遞 role 變數
+    });
   } catch (err) {
     console.error('載入 dashboard 錯誤:', { userId: req.user.id, error: err.message, stack: err.stack });
-    res.render('dashboard', { username: '未知' });
+    res.render('dashboard', { username: '未知', role: 'user' });  // 錯誤時也提供預設 role
   }
 });
 
